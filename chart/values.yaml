@@ -1,0 +1,295 @@
+# Default values for ai-workloads.
+#
+# IMPORTANT:
+#   By default this chart deploys NO workloads.
+#   Both `apps` and `batchTasks` are empty.
+#   Product charts or env overlays should define concrete workloads.
+
+# -------------------------------------------------------------------
+# Global config
+# -------------------------------------------------------------------
+global:
+  # Image pull secrets applied to all workloads.
+  imagePullSecrets: []
+  # - name: my-registry-secret
+
+# -------------------------------------------------------------------
+# ServiceAccount
+# -------------------------------------------------------------------
+# ServiceAccount configuration for all workloads.
+serviceAccount:
+  # Create a ServiceAccount if true, otherwise use `default`.
+  create: true
+  # Name of the ServiceAccount to use. If empty, `<release>-ai-workloads-sa` is created.
+  name: ""
+  # Extra annotations on the ServiceAccount (for Workload Identity, etc.).
+  annotations: {}
+
+# -------------------------------------------------------------------
+# Global metadata / labels
+# -------------------------------------------------------------------
+# Additional labels applied to all resources created by this chart.
+metadata:
+  labels: {}
+  #   swc.id: "SWC-12345"
+  #   owner.team: "team-foo"
+  #   environment: "dev"
+
+# -------------------------------------------------------------------
+# Global security contexts (kept empty by default for simplicity)
+# -------------------------------------------------------------------
+# Pod-level security context applied to all workloads (if set).
+podSecurityContext: {}
+# Container-level security context applied to all containers (if set).
+containerSecurityContext: {}
+
+# -------------------------------------------------------------------
+# Long-lived services (Deployments)
+# `kind` is metadata only (used for labels); it does not affect behaviour.
+# `service.ports[].path` is metadata only (useful for docs / gateways).
+# -------------------------------------------------------------------
+# -- List of long-lived services to deploy (Deployments).
+apps: []
+# - name: app-a
+#   kind: app
+#   infraProfile: cpu-small
+#   replicas: 1            # optional, default: 1
+#   priorityClassName: ""  # optional, set to a PriorityClass for critical workloads
+#   image:
+#     repository: ghcr.io/acme/app-a
+#     tag: v1.0.0
+#     pullPolicy: IfNotPresent
+#   service:
+#     enabled: true
+#     type: ClusterIP
+#     ports:
+#       - name: http
+#         port: 8080
+#         targetPort: 8080         # optional (defaults to port if omitted)
+#         protocol: TCP            # optional, default: TCP
+#         appProtocol: http        # optional, useful for some meshes/ingress
+#       - name: metrics
+#         port: 9090
+#     # If true, this app will NOT be added to the shared Istio VirtualService.
+#     skipVirtualService: false
+#     # Optional explicit path prefix for VirtualService routing.
+#     # Default when empty: "<istio.basePath>/<app.name>".
+#     pathPrefix: ""
+#
+#   # Optional generic settings:
+#   # - `settings`: inline JSON (ConfigMap `<app>-settings` created automatically)
+#   # - `settingsConfigMapName`: name of an existing ConfigMap to mount
+#   # - `settingsMountPath`: where to mount settings (default `/etc/settings`)
+#   settings: |-
+#     {
+#       "name": "mlserver-a",
+#       "runtime": "mlserver"
+#     }
+#   settingsConfigMapName: ""
+#   settingsMountPath: "/etc/settings"
+#
+#   # Optional extra containers
+#   initContainers: []        # list of full Container specs
+#   sidecarContainers: []     # list of full Container specs
+#
+#   command: []            # optional
+#   args: []               # optional
+#   env: []                # optional list of EnvVar-style maps
+#   envFrom: []            # optional list of EnvFromSource-style maps
+#
+#   # Optional probes (standard Kubernetes Probe objects)
+#   livenessProbe: {}
+#   readinessProbe: {}
+#   startupProbe: {}
+#
+#   labels: {}
+#   annotations: {}        # extra annotations on Deployment metadata
+#   podAnnotations: {}     # annotations applied to the Pod template
+#   resources: {}          # optional override; usually not needed if infraProfile is set
+#   volumeMounts: []       # extra volume mounts for the container
+#   volumes: []            # extra pod volumes
+#   hpa:
+#     enabled: false
+#     minReplicas: 1
+#     maxReplicas: 5
+#     targetCPUUtilizationPercentage: 60
+
+# -------------------------------------------------------------------
+# Batch workloads (Jobs / CronJobs)
+# - Without `schedule` -> Job
+# - With `schedule`    -> CronJob
+# -------------------------------------------------------------------
+# -- List of batch workloads to deploy (Jobs / CronJobs).
+batchTasks: []
+# - name: gpu-daily-task
+#   kind: batch-gpu        # metadata only
+#   infraProfile: gpu-small
+#   priorityClassName: ""  # optional
+#   image:
+#     repository: ghcr.io/acme/gpu-daily-task
+#     tag: v1.0.0
+#     pullPolicy: IfNotPresent
+#
+#   # Optional generic settings:
+#   # - `settings`: inline JSON (ConfigMap `<task>-settings` created automatically)
+#   # - `settingsConfigMapName`: name of an existing ConfigMap to mount
+#   # - `settingsMountPath`: where to mount settings (default `/etc/settings`)
+#   settings: |-
+#     {
+#       "task_name": "daily-gpu-job"
+#     }
+#   settingsConfigMapName: ""
+#   settingsMountPath: "/etc/settings"
+#
+#   # Optional extra containers
+#   initContainers: []        # list of full Container specs
+#   sidecarContainers: []     # list of full Container specs
+#
+#   command: ["python"]
+#   args:
+#     - "/app/run_daily_task.py"
+#     - "--config"
+#     - "/etc/settings/settings.json"
+#   env: []
+#   envFrom: []
+#
+#   # Optional probes (standard Kubernetes Probe objects)
+#   livenessProbe: {}
+#   readinessProbe: {}
+#   startupProbe: {}
+#
+#   labels: {}
+#   annotations: {}        # extra annotations on Job/CronJob metadata
+#   podAnnotations: {}     # annotations applied to the Pod template
+#   resources: {}          # optional override; usually not needed if infraProfile is set
+#   volumeMounts: []       # extra volume mounts for the container
+#   volumes: []            # extra pod volumes
+#
+#   # Batch behaviour
+#   parallelism: 1               # Jobs + CronJobs
+#   completions: 1               # Jobs + CronJobs
+#   backoffLimit: 0              # Jobs + CronJobs
+#   successfulJobsHistoryLimit: 1  # CronJobs only
+#   failedJobsHistoryLimit: 1      # CronJobs only
+#   activeDeadlineSeconds: 900    # optional max runtime (seconds)
+#   schedule: ""                  # if non-empty (cron string), renders a CronJob
+#   concurrencyPolicy: Forbid     # For CronJobs, default Forbid
+
+# -------------------------------------------------------------------
+# Istio VirtualService (single external host, many app paths)
+# - All apps are exposed under:
+#     https://<host><basePath>/<app.name>/...
+#   e.g. host=ai.example.com, basePath="/apps":
+#     /apps/mlserver-a/* -> mlserver-a service
+#     /apps/mlserver-b/* -> mlserver-b service
+# -------------------------------------------------------------------
+# -- Istio VirtualService configuration to expose apps by name.
+istio:
+  # -- Enable creation of an Istio VirtualService.
+  enabled: false
+  # -- External host for the VirtualService (e.g. ai.example.com).
+  host: ""
+  gateway:
+    # -- Gateway name to use in the VirtualService.
+    name: ""
+    # -- Namespace of the Gateway.
+    namespace: "istio-system"
+  # -- Base path under which apps are exposed.
+  basePath: "/"
+  # -- Optional timeout for all HTTP routes (e.g. 30s).
+  timeout: ""
+  # -- Optional retries configuration (per route).
+  retries: {}
+  #   attempts: 3
+  #   perTryTimeout: 10s
+  #   retryOn: "5xx,connect-failure,refused-stream"
+
+
+# -------------------------------------------------------------------
+# AAD / Entra ID integration for Istio
+# -------------------------------------------------------------------
+# -- Entra ID (AAD) configuration for Istio JWT validation.
+aad:
+  # -- Entra tenant ID.
+  tenantId: ""
+  # -- Primary API audience (App ID URI) for JWT validation.
+  apiAudience: ""
+  # -- Optional list of audiences; first entry used if apiAudience is empty.
+  audiences: []
+
+# -- Global RequestAuthentication toggle for Istio.
+requestAuth:
+  enabled: false
+
+# List of AuthorizationPolicy definitions for AAD-protected workloads.
+aadPolicies: []
+  # - name: ns-all
+  #   namespace: ai
+  #   namespaceWide: true
+  #   # When namespaceWide=true, selector (if set) is ignored and no selector block is rendered.
+  #   allowSameNamespaceInternal: true
+  #   allowedPaths: []
+  #   allowedGroups: []
+  #   allowedClientIds: []
+  #   selector: {}
+
+# -------------------------------------------------------------------
+# Central infra profiles – single source of truth.
+# Typically owned by the platform / infra team.
+# -------------------------------------------------------------------
+# Resource profiles (CPU/GPU, node placement) referenced by `infraProfile`.
+infraProfiles:
+  default:
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
+  cpu-small:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
+  cpu-medium:
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
+  gpu-small:
+    resources:
+      requests:
+        nvidia.com/gpu: 1
+        cpu: "1"
+        memory: "8Gi"
+      limits:
+        nvidia.com/gpu: 1
+        cpu: "4"
+        memory: "16Gi"
+    nodeSelector:
+      workload: gpu
+    tolerations:
+      - key: "workload"
+        operator: "Equal"
+        value: "gpu"
+        effect: "NoSchedule"
+    affinity: {}

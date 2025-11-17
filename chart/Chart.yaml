@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ai-workloads
+description: Unified Helm chart for AI services (Deployments) and batch tasks (Jobs/CronJobs) with shared infra profiles, generic settings and optional Istio + AAD integration.
+type: application
+version: 0.9.1
+appVersion: "1.0.0"

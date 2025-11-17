@@ -1,0 +1,55 @@
+ai-workloads:
+  apps:
+    - name: fastapi-app
+      kind: fastapi
+      infraProfile: cpu-small
+      replicas: 2
+
+      image:
+        repository: ghcr.io/acme/fastapi-app
+        tag: v1.0.0
+        pullPolicy: IfNotPresent
+
+      service:
+        enabled: true
+        type: ClusterIP
+        ports:
+          - name: http
+            port: 8000
+            protocol: TCP
+
+      # No inline settings for this simple example.
+      settings: null
+      settingsConfigMapName: ""
+
+      command: []
+      args: []
+
+      env:
+        - name: LOG_LEVEL
+          value: "info"
+
+      envFrom: []
+
+      labels: {}
+      annotations: {}
+      podAnnotations: {}
+
+      resources: {}
+
+      volumeMounts: []
+      volumes: []
+
+      hpa:
+        enabled: true
+        minReplicas: 2
+        maxReplicas: 8
+        metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 60
+
+  batchTasks: []

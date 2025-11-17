@@ -1,0 +1,44 @@
+{{- $root := . -}}
+{{- range $idx, $raw := .Values.apps }}
+{{- $appYaml := include "ai-workloads.applyKindDefaults" (dict "root" $root "obj" $raw) }}
+{{- $app := fromYaml $appYaml }}
+
+{{- $profileYaml := include "ai-workloads.infraProfile" (dict "Values" $root.Values "app" $app) }}
+{{- $profile := fromYaml $profileYaml }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-workloads.appName" (dict "root" $root "app" $app) }}
+  labels:
+{{ include "ai-workloads.standardLabels" (dict "root" $root "name" $app.name "component" ($app.kind | default "app") "extraLabels" $app.labels) | indent 4 }}
+{{- with $app.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+  replicas: {{ default 1 $app.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $app.name }}
+      app.kubernetes.io/instance: {{ $root.Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $app.name }}
+        app.kubernetes.io/instance: {{ $root.Release.Name }}
+        app.kubernetes.io/component: {{ $app.kind | default "app" }}
+        app.kubernetes.io/part-of: {{ $root.Chart.Name }}
+{{- with $app.labels }}
+{{ toYaml . | indent 8 }}
+{{- end }}
+      annotations:
+{{- if $app.podAnnotations }}
+{{ toYaml $app.podAnnotations | indent 8 }}
+{{- else }}
+        {}
+{{- end }}
+    spec:
+{{ include "ai-workloads.podSpec" (dict "root" $root "obj" $app "profile" $profile "restartPolicy" "Always") | indent 6 }}
+---
+{{- end }}

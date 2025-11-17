@@ -1,0 +1,8 @@
+apiVersion: v2
+name: gpu-nightly-batch
+version: 0.1.0
+description: GPU nightly batch job using ai-workloads batchTasks and a blob mount.
+dependencies:
+  - name: ai-workloads
+    version: 0.9.1
+    repository: oci://ghcr.io/acme/charts

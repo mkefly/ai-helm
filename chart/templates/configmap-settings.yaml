@@ -1,0 +1,4 @@
+{{- $root := . -}}
+{{- range $idx, $app := .Values.apps }}
+{{ include "ai-workloads.settingsConfigMap" (dict "root" $root "obj" $app "component" ($app.kind | default "app")) }}
+{{- end }}

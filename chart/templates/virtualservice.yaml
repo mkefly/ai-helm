@@ -1,0 +1,97 @@
+{{- if and .Values.istio.enabled .Values.istio.host .Values.istio.gateway.name }}
+{{- $root := . -}}
+{{- $base := .Values.istio.basePath | default "/" | trimSuffix "/" }}
+
+{{- /* First pass: detect if at least one route will be rendered */}}
+{{- $hasRoutes := dict "any" false }}
+{{- range $idx, $app := .Values.apps }}
+  {{- $kind := $app.kind | default "" }}
+  {{- if and $app.service $app.service.enabled (not $app.service.skipVirtualService) $app.service.ports }}
+    {{- $_ := set $hasRoutes "any" true }}
+  {{- else if and (eq $kind "mlserver") (not $app.service) }}
+    {{- $_ := set $hasRoutes "any" true }}
+  {{- end }}
+{{- end }}
+
+{{- if $hasRoutes.any }}
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ include "ai-workloads.fullname" . }}-vs
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+spec:
+  hosts:
+    - {{ .Values.istio.host }}
+  gateways:
+    - {{ printf "%s/%s" .Values.istio.gateway.namespace .Values.istio.gateway.name }}
+  http:
+{{- range $idx, $app := .Values.apps }}
+  {{- $kind := $app.kind | default "" }}
+
+  {{- if and $app.service $app.service.enabled (not $app.service.skipVirtualService) $app.service.ports }}
+
+    {{- $httpPort := index $app.service.ports 0 }}
+    {{- range $i, $p := $app.service.ports }}
+      {{- if eq $p.name "http" }}
+        {{- $httpPort = $p }}
+      {{- end }}
+    {{- end }}
+
+    {{- $segment := "" -}}
+    {{- if $app.service.pathPrefix -}}
+      {{- $segment = trimPrefix "/" $app.service.pathPrefix -}}
+    {{- else -}}
+      {{- $segment = $app.name -}}
+    {{- end }}
+    {{- $prefix := printf "%s/%s" $base $segment | replace "//" "/" -}}
+
+    - name: {{ $app.name }}
+      match:
+        - uri:
+            regex: {{ printf "^%s(/(.*))?$" $prefix | quote }}
+      rewrite:
+        uri: "/$2"
+      route:
+        - destination:
+            host: {{ include "ai-workloads.appName" (dict "root" $root "app" $app) }}
+            port:
+              number: {{ $httpPort.port }}
+    {{- if $root.Values.istio.timeout }}
+      timeout: {{ $root.Values.istio.timeout }}
+    {{- end }}
+    {{- if $root.Values.istio.retries }}
+      retries:
+{{ toYaml $root.Values.istio.retries | indent 8 }}
+    {{- end }}
+
+  {{- else if and (eq $kind "mlserver") (not $app.service) }}
+
+    {{- $segment := $app.name -}}
+    {{- $prefix := printf "%s/%s" $base $segment | replace "//" "/" -}}
+
+    - name: {{ $app.name }}
+      match:
+        - uri:
+            regex: {{ printf "^%s(/(.*))?$" $prefix | quote }}
+      rewrite:
+        uri: "/$2"
+      route:
+        - destination:
+            host: {{ include "ai-workloads.appName" (dict "root" $root "app" $app) }}
+            port:
+              number: 8000
+    {{- if $root.Values.istio.timeout }}
+      timeout: {{ $root.Values.istio.timeout }}
+    {{- end }}
+    {{- if $root.Values.istio.retries }}
+      retries:
+{{ toYaml $root.Values.istio.retries | indent 8 }}
+    {{- end }}
+
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

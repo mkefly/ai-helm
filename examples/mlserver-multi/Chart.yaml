@@ -1,0 +1,8 @@
+apiVersion: v2
+name: mlserver-multi
+version: 0.1.0
+description: Multiple MLServer deployments using ai-workloads with kind: mlserver.
+dependencies:
+  - name: ai-workloads
+    version: 0.9.1
+    repository: oci://ghcr.io/acme/charts

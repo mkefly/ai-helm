@@ -1,0 +1,8 @@
+apiVersion: v2
+name: mlserver-basic
+version: 0.1.0
+description: Example MLServer model deployment using ai-workloads.
+dependencies:
+  - name: ai-workloads
+    version: 0.9.1
+    repository: oci://ghcr.io/acme/charts

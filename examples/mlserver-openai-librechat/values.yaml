@@ -1,0 +1,236 @@
+ai-workloads:
+  # Azure AD / Entra ID for Istio JWT validation
+  aad:
+    tenantId: "8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01"
+    apiAudience: "api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61"
+
+  requestAuth:
+    enabled: true
+
+  # Namespace-wide policy: everything in namespace "ai" must have a valid JWT,
+  # except where more specific policies allow public paths.
+  aadPolicies:
+    - name: ns-all
+      namespace: ai
+      namespaceWide: true
+      allowSameNamespaceInternal: true
+      allowedPaths: []        # STRICT default — require JWT everywhere
+
+    - name: runtime-openai
+      namespace: ai
+      allowedPaths:
+        - "/docs"             # ONLY MLServer gets public /docs
+      allowSameNamespaceInternal: true
+
+  # ServiceAccount (shared) – can be wired to a UAMI if you want Workload Identity.
+  serviceAccount:
+    create: true
+    name: ""
+    annotations:
+      azure.workload.identity/client-id: "3b3c6b2c-1a2d-4e6a-9f22-03f2e7c1d8ab"
+
+  istio:
+    enabled: true
+    host: "ai.example.com"
+    gateway:
+      name: "ai-workloads-gateway"
+      namespace: "istio-system"
+    basePath: "/apps"
+    timeout: "60s"
+    retries:
+      attempts: 3
+      perTryTimeout: "10s"
+      retryOn: "5xx,connect-failure,refused-stream"
+
+  metadata:
+    labels: {}
+
+  podSecurityContext: {}
+  containerSecurityContext: {}
+
+  apps:
+    # 1) runtime-openai – MLServer-compatible OpenAI API
+    - name: runtime-openai
+      kind: mlserver
+      infraProfile: cpu-small
+      replicas: 1
+
+      image:
+        repository: ghcr.io/acme/runtime-openai
+        tag: v1.0.0
+        pullPolicy: IfNotPresent
+
+      service:
+        enabled: true
+        type: ClusterIP
+        ports:
+          - name: http
+            port: 8000
+            protocol: TCP
+
+      settings: null
+      settingsConfigMapName: ""
+
+      # Let kind=mlserver supply defaults for command/args/MLSERVER_HTTP_PORT.
+      command: []
+      args: []
+
+      env:
+        - name: LOG_LEVEL
+          value: "info"
+      envFrom: []
+
+      labels: {}
+      annotations: {}
+      podAnnotations: {}
+
+      resources: {}
+
+      volumeMounts: []
+      volumes: []
+
+      hpa:
+        enabled: true
+        minReplicas: 1
+        maxReplicas: 10
+        metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 60
+
+    # 2) LibreChat backend – internal only (behind oauth2-proxy)
+    - name: librechat-backend
+      kind: librechat
+      infraProfile: cpu-small
+      replicas: 1
+
+      image:
+        repository: ghcr.io/librechat/librechat
+        tag: latest
+        pullPolicy: IfNotPresent
+
+      service:
+        enabled: true
+        type: ClusterIP
+        ports:
+          - name: http
+            port: 3000
+            protocol: TCP
+        # Do not expose this service via the generic VirtualService.
+        skipVirtualService: true
+
+      settings: null
+      settingsConfigMapName: ""
+
+      command: []
+      args: []
+
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: librechat-openai-key
+              key: api-key
+        - name: OPENAI_API_BASE
+          # Use tpl so the ClusterIP service is computed correctly per release name.
+          value: '{{ printf "http://%s:8000/v1" (include "ai-workloads.appName" (dict "root" $ "app" (index $.Values.apps 0))) }}'
+        - name: OPENAI_API_TYPE
+          value: "openai"
+        - name: OPENAI_API_VERSION
+          value: "2023-05-15"
+
+      envFrom: []
+
+      labels: {}
+      annotations: {}
+      podAnnotations: {}
+
+      resources: {}
+
+      volumeMounts: []
+      volumes: []
+
+      hpa:
+        enabled: true
+        minReplicas: 1
+        maxReplicas: 5
+        metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 60
+
+    # 3) oauth2-proxy – front-door for LibreChat UI
+    - name: librechat
+      kind: oauth2-proxy
+      infraProfile: cpu-small
+      replicas: 1
+
+      image:
+        repository: quay.io/oauth2-proxy/oauth2-proxy
+        tag: v7.6.0
+        pullPolicy: IfNotPresent
+
+      service:
+        enabled: true
+        type: ClusterIP
+        ports:
+          - name: http
+            port: 4180
+            protocol: TCP
+
+      settings: null
+      settingsConfigMapName: ""
+
+      command: []
+      args:
+        - --http-address=0.0.0.0:4180
+        - --provider=oidc
+        - --oidc-issuer-url=https://login.microsoftonline.com/8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01/v2.0
+        - --scope=openid,profile,email
+        - --redirect-url=https://ai.example.com/apps/librechat/oauth2/callback
+        - --email-domain=example.com
+        - --upstream=http://{{ include "ai-workloads.appName" (dict "root" $ "app" (index $.Values.apps 1)) }}:3000
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --cookie-refresh=1h
+        - --cookie-expire=12h
+        - --cookie-http-only=true
+        - --pass-access-token=true
+        - --set-authorization-header=true
+
+      env:
+        - name: OAUTH2_PROXY_CLIENT_ID
+          value: "3b3c6b2c-1a2d-4e6a-9f22-03f2e7c1d8ab"
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: oauth2-proxy-client
+              key: client-secret
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: oauth2-proxy-cookie
+              key: cookie-secret
+
+      envFrom: []
+
+      labels:
+        azure.workload.identity/use: "true"
+      annotations: {}
+      podAnnotations: {}
+
+      resources: {}
+
+      volumeMounts: []
+      volumes: []
+
+      hpa:
+        enabled: false
+
+  batchTasks: []

@@ -1,0 +1,78 @@
+{{- $root := . -}}
+{{- range $idx, $task := .Values.batchTasks }}
+{{- $profileYaml := include "ai-workloads.infraProfile" (dict "Values" $root.Values "app" $task) }}
+{{- $profile := fromYaml $profileYaml }}
+{{- if $task.schedule }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ai-workloads.appName" (dict "root" $root "app" $task) }}
+  labels:
+{{ include "ai-workloads.standardLabels" (dict "root" $root "name" $task.name "component" "batch" "extraLabels" $task.labels) | indent 4 }}
+spec:
+  schedule: {{ quote $task.schedule }}
+  concurrencyPolicy: {{ default "Forbid" $task.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ default 1 $task.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ default 1 $task.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      parallelism: {{ default 1 $task.parallelism }}
+      completions: {{ default 1 $task.completions }}
+      backoffLimit: {{ default 0 $task.backoffLimit }}
+{{- if $task.activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ $task.activeDeadlineSeconds }}
+{{- end }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: {{ $task.name }}
+            app.kubernetes.io/instance: {{ $root.Release.Name }}
+            app.kubernetes.io/component: "batch"
+            app.kubernetes.io/part-of: {{ $root.Chart.Name }}
+{{- with $task.labels }}
+{{ toYaml . | indent 12 }}
+{{- end }}
+          annotations:
+{{- if $task.podAnnotations }}
+{{ toYaml $task.podAnnotations | indent 12 }}
+{{- else }}
+            {}
+{{- end }}
+        spec:
+{{ include "ai-workloads.podSpec" (dict "root" $root "obj" $task "profile" $profile "restartPolicy" "Never") | indent 10 }}
+---
+{{- else }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ai-workloads.appName" (dict "root" $root "app" $task) }}
+  labels:
+{{ include "ai-workloads.standardLabels" (dict "root" $root "name" $task.name "component" "batch" "extraLabels" $task.labels) | indent 4 }}
+spec:
+  parallelism: {{ default 1 $task.parallelism }}
+  completions: {{ default 1 $task.completions }}
+  backoffLimit: {{ default 0 $task.backoffLimit }}
+{{- if $task.activeDeadlineSeconds }}
+  activeDeadlineSeconds: {{ $task.activeDeadlineSeconds }}
+{{- end }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $task.name }}
+        app.kubernetes.io/instance: {{ $root.Release.Name }}
+        app.kubernetes.io/component: "batch"
+        app.kubernetes.io/part-of: {{ $root.Chart.Name }}
+{{- with $task.labels }}
+{{ toYaml . | indent 8 }}
+{{- end }}
+      annotations:
+{{- if $task.podAnnotations }}
+{{ toYaml $task.podAnnotations | indent 8 }}
+{{- else }}
+        {}
+{{- end }}
+    spec:
+{{ include "ai-workloads.podSpec" (dict "root" $root "obj" $task "profile" $profile "restartPolicy" "Never") | indent 6 }}
+---
+{{- end }}
+{{- end }}

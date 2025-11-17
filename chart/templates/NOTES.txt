@@ -1,0 +1,279 @@
+{{- $root := . -}}
+{{- $release := .Release.Name -}}
+{{- $ns := .Release.Namespace -}}
+{{- $apps := .Values.apps | default (list) -}}
+{{- $tasks := .Values.batchTasks | default (list) -}}
+{{- $istio := .Values.istio | default dict -}}
+{{- $aad := .Values.aad | default dict -}}
+{{- $aadPolicies := .Values.aadPolicies | default (list) -}}
+
+============================================================
+ai-workloads: Installation & Usage
+Release: {{ $release }}
+Namespace: {{ $ns }}
+Chart Version: {{ .Chart.Version }}
+============================================================
+
+------------------------------------------------------------
+1. What was deployed?
+------------------------------------------------------------
+
+{{- if eq (len $apps) 0 }}
+No services (apps[]) were deployed.
+→ To deploy workloads, define at least one entry under values.apps[].
+{{- else }}
+Services (Deployments):
+
+{{- range $a := $apps }}
+  • {{ $a.name }}
+    Deployment: {{ include "ai-workloads.appName" (dict "root" $root "app" $a) }}
+    Kind:       {{ $a.kind | default "app" }}
+    Replicas:   {{ default 1 $a.replicas }}
+    Service:    {{- if or (eq ($a.kind | default "") "mlserver") (and $a.service $a.service.enabled) }} enabled {{- else }} disabled {{- end }}
+    Infra:      {{ default "default" $a.infraProfile }}
+{{- end }}
+{{- end }}
+
+{{- if gt (len $tasks) 0 }}
+
+Batch workloads (Jobs / CronJobs):
+
+{{- range $t := $tasks }}
+  • {{ $t.name }}
+    Resource:   {{ include "ai-workloads.appName" (dict "root" $root "app" $t) }}
+    Kind:       {{- if $t.schedule }} CronJob ({{ $t.schedule }}) {{- else }} Job (one-shot) {{- end }}
+    Image:      {{ $t.image.repository }}:{{ $t.image.tag }}
+    Infra:      {{ default "default" $t.infraProfile }}
+{{- end }}
+{{- else }}
+
+No batch tasks (batchTasks[]) were deployed.
+→ To deploy Jobs/CronJobs, define at least one entry under values.batchTasks[].
+{{- end }}
+
+------------------------------------------------------------
+2. Quick usage / verification
+------------------------------------------------------------
+
+List all workloads:
+    kubectl get deploy,svc,job,cronjob -n {{ $ns }}
+
+Inspect pods:
+    kubectl get pods -n {{ $ns }}
+
+Port-forward a service (example):
+    kubectl port-forward deploy/<app-name> 8000:8000 -n {{ $ns }}
+
+Check this release's resources:
+    helm get manifest {{ $release }} -n {{ $ns }}
+
+------------------------------------------------------------
+3. Key values at a glance
+------------------------------------------------------------
+
+ServiceAccount:
+  create:  {{ default true .Values.serviceAccount.create }}
+  name:    {{ include "ai-workloads.serviceAccountName" . }}
+
+Istio:
+  enabled: {{ default false $istio.enabled }}
+  host:    {{ $istio.host | default "<not-set>" }}
+  gateway: {{ $istio.gateway.name | default "<not-set>" }} (ns={{ $istio.gateway.namespace | default "istio-system" }})
+  basePath: {{ $istio.basePath | default "/" }}
+
+AAD / Entra ID:
+  tenantId:      {{ $aad.tenantId | default "<not-set>" }}
+  apiAudience:   {{ $aad.apiAudience | default "<not-set>" }}
+  audiences[]:   {{- if $aad.audiences }} {{ join ", " $aad.audiences }} {{- else }} <empty> {{- end }}
+  requestAuth:   {{ ternary "enabled" "disabled" (and $aad.tenantId .Values.requestAuth.enabled) }}
+
+------------------------------------------------------------
+4. Istio / external URLs
+------------------------------------------------------------
+
+{{- if $istio.enabled }}
+Ingress Mode: Enabled
+Host:         {{ $istio.host | default "<missing host>" }}
+Base Path:    {{ $istio.basePath | default "/" }}
+
+{{- if and $istio.host (gt (len $apps) 0) }}
+Exposed app routes:
+{{- $base := $istio.basePath | default "/" | trimSuffix "/" }}
+{{- range $a := $apps }}
+  {{- if and $a.service $a.service.enabled $a.service.ports }}
+    {{- $segment := "" -}}
+    {{- if $a.service.pathPrefix }}
+      {{- $segment = trimPrefix "/" $a.service.pathPrefix -}}
+    {{- else -}}
+      {{- $segment = $a.name -}}
+    {{- end }}
+    {{- $prefix := printf "%s/%s" $base $segment | replace "//" "/" -}}
+  • {{ printf "https://%s%s" $istio.host $prefix }}
+  {{- end }}
+{{- end }}
+
+{{- else }}
+No apps with enabled Service found for Istio routing.
+{{- end }}
+
+{{ else }}
+Istio ingress is DISABLED.
+You can still port-forward services manually:
+    kubectl port-forward deploy/<name> 8000:8000 -n {{ $ns }}
+{{- end }}
+
+------------------------------------------------------------
+5. AAD Authentication & AuthorizationPolicies
+------------------------------------------------------------
+
+{{- if and $aad.tenantId .Values.requestAuth.enabled }}
+Tenant: {{ $aad.tenantId }}
+
+RequestAuthentication objects:
+  - One per namespace that appears in aadPolicies[].namespace (or the release namespace)
+
+{{- if eq (len $aadPolicies) 0 }}
+No AuthorizationPolicy resources defined (aadPolicies[] is empty).
+{{- else }}
+AuthorizationPolicies:
+{{- range $p := $aadPolicies }}
+  • {{ $p.name }}
+    Namespace:                    {{ $p.namespace | default $ns }}
+    Namespace-wide:               {{ default false $p.namespaceWide }}
+    Internal same-namespace OK:   {{ default false $p.allowSameNamespaceInternal }}
+    Allowed paths:                {{- if $p.allowedPaths }} {{ join ", " $p.allowedPaths }} {{- else }} <any> {{- end }}
+    Allowed groups:               {{- if $p.allowedGroups }} {{ join ", " $p.allowedGroups }} {{- else }} <none> {{- end }}
+    Allowed clientIds (azp):      {{- if $p.allowedClientIds }} {{ join ", " $p.allowedClientIds }} {{- else }} <none> {{- end }}
+{{- end }}
+{{- end }}
+
+To inspect:
+    kubectl get requestauthentication.security.istio.io -A
+    kubectl get authorizationpolicies.security.istio.io -A
+
+{{- else }}
+AAD authentication disabled or incomplete.
+→ To enable:
+    requestAuth.enabled=true
+    aad.tenantId="<tenant-id>"
+    aad.apiAudience="<api-audience-or-resource>"
+{{- end }}
+
+------------------------------------------------------------
+6. Infra profiles referenced by this release
+------------------------------------------------------------
+
+{{- $profilesUsed := dict }}
+{{- range $a := $apps }}
+  {{- $pname := default "default" $a.infraProfile }}
+  {{- $_ := set $profilesUsed $pname true }}
+{{- end }}
+{{- range $t := $tasks }}
+  {{- $pname := default "default" $t.infraProfile }}
+  {{- $_ := set $profilesUsed $pname true }}
+{{- end }}
+
+{{- if gt (len $profilesUsed) 0 }}
+Profiles referenced by apps/batchTasks:
+{{- range $name, $_ := $profilesUsed }}
+  • {{ $name }}
+{{- end }}
+{{- else }}
+No infra profiles referenced explicitly (workloads will use the "default" profile).
+{{- end }}
+
+------------------------------------------------------------
+7. Volumes, settings & sidecars (best-effort)
+------------------------------------------------------------
+
+{{- $volSummary := dict "any" false }}
+
+{{- range $a := $apps }}
+  {{- if or $a.volumeMounts $a.volumes $a.settings $a.settingsConfigMapName $a.initContainers $a.sidecarContainers }}
+    {{- $_ := set $volSummary "any" true }}
+• App "{{ $a.name }}":
+  {{- if or $a.settings $a.settingsConfigMapName }}
+    - Settings: {{- if $a.settingsConfigMapName }} external ConfigMap "{{ $a.settingsConfigMapName }}" {{- else }} inline settings → ConfigMap "<release>-<chart>-{{ $a.name }}-settings" {{- end }}
+  {{- end }}
+  {{- if $a.volumeMounts }}
+    - Extra volumeMounts defined
+  {{- end }}
+  {{- if $a.volumes }}
+    - Extra volumes defined
+  {{- end }}
+  {{- if $a.initContainers }}
+    - initContainers defined
+  {{- end }}
+  {{- if $a.sidecarContainers }}
+    - sidecarContainers defined
+  {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- range $t := $tasks }}
+  {{- if or $t.volumeMounts $t.volumes $t.settings $t.settingsConfigMapName $t.initContainers $t.sidecarContainers }}
+    {{- $_ := set $volSummary "any" true }}
+• Batch "{{ $t.name }}":
+  {{- if or $t.settings $t.settingsConfigMapName }}
+    - Settings: {{- if $t.settingsConfigMapName }} external ConfigMap "{{ $t.settingsConfigMapName }}" {{- else }} inline settings → ConfigMap "<release>-<chart>-{{ $t.name }}-settings" {{- end }}
+  {{- end }}
+  {{- if $t.volumeMounts }}
+    - Extra volumeMounts defined
+  {{- end }}
+  {{- if $t.volumes }}
+    - Extra volumes defined
+  {{- end }}
+  {{- if $t.initContainers }}
+    - initContainers defined
+  {{- end }}
+  {{- if $t.sidecarContainers }}
+    - sidecarContainers defined
+  {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- if not (index $volSummary "any") }}
+No extra volumes, settings, initContainers or sidecars detected.
+{{- end }}
+
+------------------------------------------------------------
+8. Warnings & possible misconfigurations
+------------------------------------------------------------
+
+{{- $warn := dict "any" false }}
+
+{{- range $a := $apps }}
+  {{- if and $a.service $a.service.enabled (or (not $a.service.ports) (eq (len $a.service.ports) 0)) }}
+    {{- $_ := set $warn "any" true }}
+• App "{{ $a.name }}": service.enabled=true but no service.ports defined.
+  {{- end }}
+{{- end }}
+
+{{- range $a := $apps }}
+  {{- if and $a.hpa $a.hpa.enabled (or (not $a.hpa.metrics) (eq (len $a.hpa.metrics) 0)) }}
+    {{- $_ := set $warn "any" true }}
+• App "{{ $a.name }}": hpa.enabled=true but no hpa.metrics defined.
+  HPA (autoscaling/v2) requires at least one metric block; the chart will skip rendering the HPA.
+  {{- end }}
+{{- end }}
+
+{{- if and $istio.enabled (or (not $istio.host) (not $istio.gateway.name)) }}
+  {{- $_ := set $warn "any" true }}
+• Istio: istio.enabled=true but host and/or gateway.name not set.
+{{- end }}
+
+{{- range $p := $aadPolicies }}
+  {{- if and $p.namespaceWide $p.selector }}
+    {{- $_ := set $warn "any" true }}
+• AAD Policy "{{ $p.name }}": namespaceWide=true and selector set.
+  Selector is ignored when namespaceWide is true; policy will apply to the whole namespace.
+  {{- end }}
+{{- end }}
+
+{{- if not (index $warn "any") }}
+No obvious misconfigurations detected based on current values.
+{{- end }}
+
+============================================================
+End of NOTES.
+============================================================

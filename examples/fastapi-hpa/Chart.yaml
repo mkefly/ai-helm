@@ -1,0 +1,8 @@
+apiVersion: v2
+name: fastapi-hpa
+version: 0.1.0
+description: FastAPI deployment with HPA using ai-workloads.
+dependencies:
+  - name: ai-workloads
+    version: 0.9.1
+    repository: oci://ghcr.io/acme/charts

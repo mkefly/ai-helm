@@ -1,0 +1,54 @@
+ai-workloads:
+  # No long-lived services in this example.
+  apps: []
+
+  # Single GPU-backed batch task that runs daily at 01:00.
+  batchTasks:
+    - name: gpu-nightly
+      # Free-form kind label; useful only for your own classification.
+      kind: batch-gpu
+
+      # Use the shared GPU infra profile from ai-workloads.
+      infraProfile: gpu-small
+
+      image:
+        repository: ghcr.io/acme/gpu-batch
+        tag: v1.0.0
+        pullPolicy: IfNotPresent
+
+      # We rely on the container's default CMD: python3 run_batch.py
+      command: []
+      args: []
+
+      env:
+        - name: INPUT_DIR
+          value: "/mnt/blob/incoming"
+        - name: OUTPUT_DIR
+          value: "/mnt/blob/processed"
+
+      envFrom: []
+
+      labels: {}
+      annotations: {}
+      podAnnotations: {}
+
+      # Let the infraProfile drive resource requests/limits; override if needed.
+      resources: {}
+
+      # Mount the shared blob PVC under /mnt/blob.
+      volumeMounts:
+        - name: blob-store
+          mountPath: /mnt/blob
+      volumes:
+        - name: blob-store
+          persistentVolumeClaim:
+            claimName: shared-blob-pvc
+
+      # Job safety guards.
+      parallelism: 1
+      completions: 1
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+
+      # Run once a day at 01:00.
+      schedule: "0 1 * * *"

@@ -1,0 +1,78 @@
+ai-workloads:
+  apps:
+    - name: mlserver-model
+      kind: mlserver
+      infraProfile: cpu-small
+      replicas: 1
+
+      image:
+        repository: ghcr.io/acme/mlserver-basic-model
+        tag: v1.0.0
+        pullPolicy: IfNotPresent
+
+      settings: |-
+        {
+          "models": [
+            {
+              "name": "my-model",
+              "implementation": "mlserver_sklearn.SKLearnModel",
+              "parameters": {
+                "uri": "/models/my-model"
+              }
+            }
+          ],
+          "logging": {
+            "level": "INFO"
+          }
+        }
+
+      # ai-workloads will default settingsMountPath to /etc/settings when settings is set.
+      settingsConfigMapName: ""
+
+      # No need to define command/args or MLSERVER_HTTP_PORT: kind=mlserver does this for you.
+      command: []
+      args: []
+
+      env: []
+      envFrom: []
+
+      labels: {}
+      annotations: {}
+
+      hpa:
+        enabled: true
+        minReplicas: 1
+        maxReplicas: 5
+        metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 60
+
+    - name: mlserver-b
+      kind: mlserver
+      infraProfile: cpu-medium
+      replicas: 1
+      image:
+        repository: ghcr.io/acme/mlserver-b
+        tag: v1.0.0
+        pullPolicy: IfNotPresent
+      settings: |-
+        {
+          "models": [
+            {
+              "name": "model-b",
+              "implementation": "mlserver_sklearn.SKLearnModel",
+              "parameters": {
+                "uri": "/models/model-b"
+              }
+            }
+          ],
+          "logging": {
+            "level": "DEBUG"
+          }
+        }
+
+  batchTasks: []

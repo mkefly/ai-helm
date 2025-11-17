@@ -1,0 +1,4 @@
+{{- $root := . -}}
+{{- range $idx, $task := .Values.batchTasks }}
+{{ include "ai-workloads.settingsConfigMap" (dict "root" $root "obj" $task "component" "batch") }}
+{{- end }}

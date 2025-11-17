@@ -1,0 +1,28 @@
+{{- $root := . -}}
+{{- range $idx, $app := .Values.apps }}
+{{- $kind := $app.kind | default "" }}
+
+{{- if eq $kind "mlserver" }}
+
+  {{- /* Simple mlserver: no service defined -> default ClusterIP:8000 */}}
+  {{- if not $app.service }}
+    {{- $ports := list (dict "name" "http" "port" 8000 "targetPort" 8000 "protocol" "TCP") }}
+    {{- $ctx := dict "root" $root "app" $app "type" "ClusterIP" "ports" $ports }}
+{{ include "ai-workloads.serviceTemplate" $ctx }}
+---
+  {{- else if and $app.service.enabled $app.service.ports }}
+    {{- $ctx := dict "root" $root "app" $app "type" (default "ClusterIP" $app.service.type) "ports" $app.service.ports }}
+{{ include "ai-workloads.serviceTemplate" $ctx }}
+---
+  {{- end }}
+
+{{- else }}
+
+  {{- if and $app.service $app.service.enabled $app.service.ports }}
+    {{- $ctx := dict "root" $root "app" $app "type" (default "ClusterIP" $app.service.type) "ports" $app.service.ports }}
+{{ include "ai-workloads.serviceTemplate" $ctx }}
+---
+  {{- end }}
+
+{{- end }}
+{{- end }}

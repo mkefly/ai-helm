@@ -1,0 +1,30 @@
+{{- $root := . -}}
+{{- $globalAud := include "aad-guard.apiAudience" . -}}
+
+{{- if and $root.Values.aad.tenantId $root.Values.requestAuth.enabled }}
+
+{{- $nsSet := dict }}
+{{- $_ := set $nsSet $root.Release.Namespace true }}
+
+{{- range $root.Values.aadPolicies }}
+  {{- $ns := default $root.Release.Namespace .namespace }}
+  {{- $_ := set $nsSet $ns true }}
+{{- end }}
+
+{{- range $ns, $_ := $nsSet }}
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: {{ printf "%s-%s" (include "aad-guard.requestauth.name" $root) $ns | trunc 63 | trimSuffix "-" }}
+  namespace: {{ $ns }}
+spec:
+  jwtRules:
+    - issuer: {{ include "aad-guard.issuer" $root | quote }}
+      jwksUri: {{ include "aad-guard.jwksUri" $root | quote }}
+      {{- if $globalAud }}
+      audiences:
+        - {{ $globalAud | quote }}
+      {{- end }}
+---
+{{- end }}
+{{- end }}

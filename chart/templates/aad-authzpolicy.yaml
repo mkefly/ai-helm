@@ -1,0 +1,82 @@
+{{- $root := . -}}
+{{- $globalAud := include "aad-guard.apiAudience" . -}}
+
+{{- if and .Values.aad.tenantId .Values.aadPolicies }}
+
+{{- range $t := .Values.aadPolicies }}
+
+  {{- $ns := default $root.Release.Namespace $t.namespace }}
+  {{- $groups := $t.allowedGroups | default (list) }}
+  {{- $clients := $t.allowedClientIds | default (list) }}
+  {{- $allowSameNs := $t.allowSameNamespaceInternal | default false }}
+  {{- $paths := $t.allowedPaths | default (list) }}
+  {{- $namespaceWide := $t.namespaceWide | default false }}
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ printf "%s-%s-aad" (include "aad-guard.fullname" $root) $t.name | trunc 63 | trimSuffix "-" }}
+  namespace: {{ $ns }}
+spec:
+  {{- if not $namespaceWide }}
+  selector:
+    {{- if and $t.selector (gt (len $t.selector) 0) }}
+{{ toYaml $t.selector | indent 4 }}
+    {{- else }}
+      matchLabels:
+        app.kubernetes.io/name: {{ $t.name }}
+    {{- end }}
+  {{- end }}
+
+  action: ALLOW
+  rules:
+    {{- if $allowSameNs }}
+    - from:
+        - source:
+            namespaces: [{{ $ns | quote }}]
+      {{- if $paths }}
+      to:
+        - operation:
+            paths:
+              {{- range $paths }}
+              - {{ . | quote }}
+              {{- end }}
+      {{- end }}
+    {{- end }}
+
+    - from:
+        - source:
+            requestPrincipals: ["*"]
+      {{- if $paths }}
+      to:
+        - operation:
+            paths:
+              {{- range $paths }}
+              - {{ . | quote }}
+              {{- end }}
+      {{- end }}
+      when:
+        {{- if $globalAud }}
+        - key: request.auth.claims[aud]
+          values:
+            - {{ $globalAud | quote }}
+        {{- end }}
+
+        {{- if $groups }}
+        - key: request.auth.claims[groups]
+          values:
+            {{- range $groups }}
+            - {{ . | quote }}
+            {{- end }}
+        {{- end }}
+
+        {{- if $clients }}
+        - key: request.auth.claims[azp]
+          values:
+            {{- range $clients }}
+            - {{ . | quote }}
+            {{- end }}
+        {{- end }}
+---
+{{- end }}
+{{- end }}

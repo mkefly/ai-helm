@@ -1,0 +1,24 @@
+site_name: ai-workloads Helm Chart
+repo_name: ai-workloads
+theme:
+  name: material
+
+markdown_extensions:
+  - admonition
+  - pymdownx.snippets
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Configuration: configuration.md
+  - Design: design.md
+  - PVCs: pvc.md
+  - Examples:
+      - MLServer basic: _examples/mlserver-basic.md
+      - FastAPI with HPA: _examples/fastapi-hpa.md
+      - GPU nightly batch: _examples/gpu-nightly-batch.md
+      - MLServer + LibreChat: _examples/mlserver-openai-librechat.md
+
+docs_dir: docs

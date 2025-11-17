@@ -1,0 +1,21 @@
+{{- $root := . -}}
+{{- range $idx, $app := .Values.apps }}
+{{- if and $app.hpa $app.hpa.enabled $app.hpa.metrics (gt (len $app.hpa.metrics) 0) }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ai-workloads.appName" (dict "root" $root "app" $app) }}-hpa
+  labels:
+{{ include "ai-workloads.standardLabels" (dict "root" $root "name" $app.name "component" ($app.kind | default "app") "extraLabels" $app.labels) | indent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ai-workloads.appName" (dict "root" $root "app" $app) }}
+  minReplicas: {{ $app.hpa.minReplicas | default 1 }}
+  maxReplicas: {{ $app.hpa.maxReplicas | default 5 }}
+  metrics:
+{{ toYaml $app.hpa.metrics | indent 4 }}
+---
+{{- end }}
+{{- end }}
