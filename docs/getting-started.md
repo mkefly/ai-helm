@@ -7,7 +7,7 @@ From `chart/`:
 ```bash
 cd chart
 helm package .
-helm push ai-workloads-0.8.0.tgz oci://ghcr.io/acme/charts
+helm push ai-workloads-0.9.1.tgz oci://ghcr.io/acme/charts
 ```
 
 ## 2. Add as a dependency in your product chart
@@ -19,7 +19,7 @@ version: 0.1.0
 
 dependencies:
   - name: ai-workloads
-    version: 0.8.0
+    version: 0.9.1
     repository: oci://ghcr.io/acme/charts
 ```
 

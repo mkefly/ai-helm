@@ -12,6 +12,7 @@ Each example is a small, self-contained Helm chart using `ai-workloads`:
 
 - `examples/fastapi-hpa`
 - `examples/mlserver-basic`
+- `examples/mlserver-multi`
 - `examples/gpu-nightly-batch`
 - `examples/mlserver-openai-librechat`
 
