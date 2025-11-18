@@ -2,6 +2,20 @@
 {{- range $idx, $task := .Values.batchTasks }}
 {{- $profileYaml := include "ai-workloads.infraProfile" (dict "Values" $root.Values "app" $task) }}
 {{- $profile := fromYaml $profileYaml }}
+{{- $profileName := $task.infraProfile | default "default" }}
+{{- $settingsChecksum := include "ai-workloads.settingsChecksum" (dict "obj" $task) }}
+{{- $podAnnotations := dict }}
+{{- if $profileName }}
+  {{- $_ := set $podAnnotations "ai-workloads/infra-profile" $profileName }}
+{{- end }}
+{{- if $settingsChecksum }}
+  {{- $_ := set $podAnnotations "checksum/settings" $settingsChecksum }}
+{{- end }}
+{{- if $task.podAnnotations }}
+  {{- range $k, $v := $task.podAnnotations }}
+    {{- $_ := set $podAnnotations $k $v }}
+  {{- end }}
+{{- end }}
 {{- if $task.schedule }}
 apiVersion: batch/v1
 kind: CronJob
@@ -14,6 +28,15 @@ spec:
   concurrencyPolicy: {{ default "Forbid" $task.concurrencyPolicy }}
   successfulJobsHistoryLimit: {{ default 1 $task.successfulJobsHistoryLimit }}
   failedJobsHistoryLimit: {{ default 1 $task.failedJobsHistoryLimit }}
+{{- if hasKey $task "timeZone" }}
+  timeZone: {{ $task.timeZone | quote }}
+{{- end }}
+{{- if hasKey $task "suspend" }}
+  suspend: {{ $task.suspend }}
+{{- end }}
+{{- if hasKey $task "startingDeadlineSeconds" }}
+  startingDeadlineSeconds: {{ $task.startingDeadlineSeconds }}
+{{- end }}
   jobTemplate:
     spec:
       parallelism: {{ default 1 $task.parallelism }}
@@ -21,6 +44,9 @@ spec:
       backoffLimit: {{ default 0 $task.backoffLimit }}
 {{- if $task.activeDeadlineSeconds }}
       activeDeadlineSeconds: {{ $task.activeDeadlineSeconds }}
+{{- end }}
+{{- if hasKey $task "ttlSecondsAfterFinished" }}
+      ttlSecondsAfterFinished: {{ $task.ttlSecondsAfterFinished }}
 {{- end }}
       template:
         metadata:
@@ -32,11 +58,9 @@ spec:
 {{- with $task.labels }}
 {{ toYaml . | indent 12 }}
 {{- end }}
+{{- if gt (len $podAnnotations) 0 }}
           annotations:
-{{- if $task.podAnnotations }}
-{{ toYaml $task.podAnnotations | indent 12 }}
-{{- else }}
-            {}
+{{ toYaml $podAnnotations | indent 12 }}
 {{- end }}
         spec:
 {{ include "ai-workloads.podSpec" (dict "root" $root "obj" $task "profile" $profile "restartPolicy" "Never") | indent 10 }}
@@ -55,6 +79,9 @@ spec:
 {{- if $task.activeDeadlineSeconds }}
   activeDeadlineSeconds: {{ $task.activeDeadlineSeconds }}
 {{- end }}
+{{- if hasKey $task "ttlSecondsAfterFinished" }}
+  ttlSecondsAfterFinished: {{ $task.ttlSecondsAfterFinished }}
+{{- end }}
   template:
     metadata:
       labels:
@@ -65,11 +92,9 @@ spec:
 {{- with $task.labels }}
 {{ toYaml . | indent 8 }}
 {{- end }}
+{{- if gt (len $podAnnotations) 0 }}
       annotations:
-{{- if $task.podAnnotations }}
-{{ toYaml $task.podAnnotations | indent 8 }}
-{{- else }}
-        {}
+{{ toYaml $podAnnotations | indent 8 }}
 {{- end }}
     spec:
 {{ include "ai-workloads.podSpec" (dict "root" $root "obj" $task "profile" $profile "restartPolicy" "Never") | indent 6 }}

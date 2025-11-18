@@ -243,6 +243,9 @@
               "pathPrefix": {
                 "type": "string"
               },
+              "annotations": {
+                "type": "object"
+              },
               "ports": {
                 "type": "array",
                 "items": {
@@ -533,6 +536,18 @@
           },
           "concurrencyPolicy": {
             "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "suspend": {
+            "type": "boolean"
+          },
+          "startingDeadlineSeconds": {
+            "type": "integer"
+          },
+          "ttlSecondsAfterFinished": {
+            "type": "integer"
           },
           "activeDeadlineSeconds": {
             "type": "integer"

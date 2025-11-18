@@ -15,3 +15,13 @@ data:
 ---
 {{- end }}
 {{- end -}}
+
+{{- /* Hash content used for app/task settings so that pods restart on updates */ -}}
+{{- define "ai-workloads.settingsChecksum" -}}
+{{- $obj := .obj -}}
+{{- if $obj.settings }}
+{{- printf "%s" $obj.settings | sha256sum -}}
+{{- else if $obj.settingsConfigMapName }}
+{{- printf "%s" $obj.settingsConfigMapName | sha256sum -}}
+{{- end -}}
+{{- end -}}

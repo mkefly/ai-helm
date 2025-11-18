@@ -5,6 +5,20 @@
 
 {{- $profileYaml := include "ai-workloads.infraProfile" (dict "Values" $root.Values "app" $app) }}
 {{- $profile := fromYaml $profileYaml }}
+{{- $profileName := $app.infraProfile | default "default" }}
+{{- $settingsChecksum := include "ai-workloads.settingsChecksum" (dict "obj" $app) }}
+{{- $podAnnotations := dict }}
+{{- if $profileName }}
+  {{- $_ := set $podAnnotations "ai-workloads/infra-profile" $profileName }}
+{{- end }}
+{{- if $settingsChecksum }}
+  {{- $_ := set $podAnnotations "checksum/settings" $settingsChecksum }}
+{{- end }}
+{{- if $app.podAnnotations }}
+  {{- range $k, $v := $app.podAnnotations }}
+    {{- $_ := set $podAnnotations $k $v }}
+  {{- end }}
+{{- end }}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -32,11 +46,9 @@ spec:
 {{- with $app.labels }}
 {{ toYaml . | indent 8 }}
 {{- end }}
+{{- if gt (len $podAnnotations) 0 }}
       annotations:
-{{- if $app.podAnnotations }}
-{{ toYaml $app.podAnnotations | indent 8 }}
-{{- else }}
-        {}
+{{ toYaml $podAnnotations | indent 8 }}
 {{- end }}
     spec:
 {{ include "ai-workloads.podSpec" (dict "root" $root "obj" $app "profile" $profile "restartPolicy" "Always") | indent 6 }}

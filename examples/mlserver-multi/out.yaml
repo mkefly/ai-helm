@@ -135,7 +135,8 @@ spec:
         app.kubernetes.io/part-of: ai-workloads
         azure.workload.identity/use: "true"
       annotations:
-        {}
+        ai-workloads/infra-profile: cpu-small
+        checksum/settings: 94426573412dec6e8a591071b973d7f0b74bbcf0683ed5503aae8e2c60b537dd
     spec:
       
       
@@ -216,7 +217,8 @@ spec:
         app.kubernetes.io/part-of: ai-workloads
         azure.workload.identity/use: "true"
       annotations:
-        {}
+        ai-workloads/infra-profile: cpu-medium
+        checksum/settings: 74bd555d66fcb3ba6694e476ba9691add89ef8c1f6aba50e7a7c0875104b2bfc
     spec:
       
       
