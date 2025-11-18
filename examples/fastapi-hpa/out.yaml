@@ -73,8 +73,7 @@ spec:
         app.kubernetes.io/part-of: ai-workloads
       annotations:
         ai-workloads/infra-profile: cpu-small
-        checksum/settings: c6b89f4a7e90dc331340011426855fee4fe39e159cd728a3b2fe4115c072adda
-        traffic.sidecar.istio.io/excludeInboundPorts: "8000"
+        checksum/settings: 879ef01559f260a694cc8f9ee7a37dbf4696b4f6c90fa1d278e7396332f1df90
     spec:
       
       

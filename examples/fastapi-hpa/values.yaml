@@ -31,9 +31,6 @@ ai-workloads:
         - name: FEATURE_FLAGS
           value: beta-endpoints
 
-      podAnnotations:
-        traffic.sidecar.istio.io/excludeInboundPorts: "8000"
-
       hpa:
         enabled: true
         minReplicas: 2
