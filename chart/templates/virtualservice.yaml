@@ -24,9 +24,9 @@ metadata:
     app.kubernetes.io/managed-by: "ai-workloads-helm"
 spec:
   hosts:
-    - {{ .Values.istio.host }}
+    - {{ .Values.istio.host | quote }}
   gateways:
-    - {{ printf "%s/%s" .Values.istio.gateway.namespace .Values.istio.gateway.name }}
+    - {{ printf "%s/%s" .Values.istio.gateway.namespace .Values.istio.gateway.name | quote }}
   http:
 {{- range $idx, $raw := .Values.apps }}
   {{- $appYaml := include "ai-workloads.applyKindDefaults" (dict "root" $root "obj" $raw) }}
@@ -40,7 +40,7 @@ spec:
       {{- $segment = trimPrefix "/" $svc.pathPrefix }}
     {{- end }}
     {{- $prefix := printf "%s/%s" $base $segment | replace "//" "/" }}
-    {{- $httpPort := include "ai-workloads.serviceHttpPort" (dict "service" $svc) | default "" }}
+    {{- $httpPort := (include "ai-workloads.serviceHttpPort" (dict "service" $svc) | trim | default "") }}
 
     {{- if $httpPort }}
     - name: {{ $app.name }}
@@ -53,7 +53,7 @@ spec:
         - destination:
             host: {{ include "ai-workloads.appName" (dict "root" $root "app" $app) }}
             port:
-              number: {{ $httpPort }}
+              number: {{ $httpPort | int }}
     {{- if $root.Values.istio.timeout }}
       timeout: {{ $root.Values.istio.timeout }}
     {{- end }}

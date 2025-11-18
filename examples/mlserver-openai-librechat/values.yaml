@@ -68,6 +68,9 @@ ai-workloads:
                 type: Utilization
                 averageUtilization: 60
 
+      labels:
+        azure.workload.identity/use: "true"
+
     - name: librechat-backend
       kind: librechat
       infraProfile: cpu-small
@@ -110,6 +113,9 @@ ai-workloads:
                 type: Utilization
                 averageUtilization: 60
 
+      labels:
+        azure.workload.identity/use: "true"
+
     - name: librechat
       kind: oauth2-proxy
       infraProfile: cpu-small
@@ -133,7 +139,7 @@ ai-workloads:
         - --scope=openid,profile,email
         - --redirect-url=https://ai.example.com/apps/librechat/oauth2/callback
         - --email-domain=example.com
-        - --upstream=http://{{ include "ai-workloads.appName" (dict "root" $ "app" (index $.Values.apps 1)) }}:3000
+        - --upstream=http://aiw-ai-workloads-librechat-backend:3000
         - --cookie-secure=true
         - --cookie-samesite=lax
         - --cookie-refresh=1h

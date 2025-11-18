@@ -1,0 +1,93 @@
+# ========================================================
+# Global
+# ========================================================
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.env
+.env.*
+.secret*
+.credentials/
+*.log
+
+# ========================================================
+# Python
+# ========================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+pip-wheel-metadata/
+pip-log.txt
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+*.whl
+
+# Test, lint, coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+pytestdebug.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local scripts
+scripts/local/
+
+# ========================================================
+# Helm
+# ========================================================
+
+# Helm chart build artifacts
+charts/
+*.tgz
+*.tar.gz
+
+# Values overrides that must not be committed
+values.local.yaml
+values.dev.local.yaml
+values.secret.yaml
+secrets.yaml
+override*.yaml
+env/*.local.yaml
+
+# helm-docs output (if generated in-place)
+README.md.gotmpl.rendered
+tmp/
+helm-docs-cache/
+
+# Chart lock files (regenerate per build)
+Chart.lock
+
+# CRD build/cache
+crds-generated/
+crds/*.generated.*
+
+# Kustomize (if mixed with Helm)
+kustomization.build.yaml
+
+# ========================================================
+# Container tools
+# ========================================================
+.cache/
+docker-cache/

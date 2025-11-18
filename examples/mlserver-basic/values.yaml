@@ -1,44 +1,29 @@
 ai-workloads:
+  serviceAccount:
+    create: true
+    annotations:
+      azure.workload.identity/client-id: 3b3c6b2c-1a2d-4e6a-9f22-03f2e7c1d8ab
+
   apps:
-    - name: mlserver-basic
+    - name: mlserver-a
       kind: mlserver
       infraProfile: cpu-small
+      replicas: 1
 
       image:
-        repository: ghcr.io/acme/mlserver-basic-model
-        tag: v1.0.0
+        repository: ghcr.io/acme/mlserver-a
+        tag: v1.1.0
 
       settings: |
         {
           "models": [
             {
-              "name": "credit-default",
+              "name": "fraud-detector",
               "implementation": "mlserver_sklearn.SKLearnModel",
               "parameters": {
-                "uri": "/models/credit-default"
+                "uri": "/models/fraud-detector"
               }
             }
           ],
           "logLevel": "INFO"
         }
-
-      volumeMounts:
-        - name: model-storage
-          mountPath: /models
-      volumes:
-        - name: model-storage
-          emptyDir: {}
-
-      hpa:
-        enabled: true
-        minReplicas: 1
-        maxReplicas: 5
-        metrics:
-          - type: Resource
-            resource:
-              name: cpu
-              target:
-                type: Utilization
-                averageUtilization: 60
-
-  batchTasks: []

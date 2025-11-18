@@ -3,9 +3,12 @@ Kind-specific defaults for kind: mlserver.
 
 Responsibilities:
   - Ensure there is a Service (enabled by default) on port 8000 if none defined
-  - Derive MLSERVER_HTTP_PORT from the first service port
-  - Provide sensible default liveness/readiness probes
+  - Derive MLSERVER_HTTP_PORT from the first service port, unless already set
+  - Provide sensible default liveness/readiness probes using the HTTP port
   - Provide a default command/args to start mlserver with /etc/settings/settings.json
+  - Ensure a writable /models (emptyDir) by default
+  - For mlserver workloads, add `azure.workload.identity/use: "true"` label
+  - If no HPA defined at all, add a sane default HPA config
 */}}
 {{- define "ai-workloads.applyKindDefaults.mlserver" -}}
 {{- $root := .root -}}
@@ -14,8 +17,18 @@ Responsibilities:
 {{- /* Start with a shallow copy so we can mutate safely */}}
 {{- $app := deepCopy $in -}}
 
+{{- /* Ensure labels map exists */}}
+{{- if not $app.labels }}
+  {{- $_ := set $app "labels" (dict) }}
+{{- end }}
+
+{{- /* Mark mlserver workloads for Workload Identity (if your webhook uses this label) */}}
+{{- if not (hasKey $app.labels "azure.workload.identity/use") }}
+  {{- $_ := set $app.labels "azure.workload.identity/use" "true" }}
+{{- end }}
+
+{{- /* Ensure service block exists */}}
 {{- if not $app.service }}
-  {{- /* Ensure service exists */}}
   {{- $_ := set $app "service" (dict) }}
 {{- end }}
 
@@ -38,27 +51,40 @@ Responsibilities:
   {{- $_ := set $svc "ports" $defaultPorts }}
 {{- end }}
 
+{{- /* Ensure env list exists */}}
 {{- if not $app.env }}
   {{- $_ := set $app "env" (list) }}
 {{- end }}
+{{- $env := $app.env | default (list) }}
 
-{{- $ports := $svc.ports | default (list) }}
-
+{{- /* Derive effective HTTP port from first service port */}}
+{{- $ports := $svc.ports | default (list) -}}
+{{- $portVal := 8000 -}}
 {{- if gt (len $ports) 0 }}
-  {{- /* Use the first declared port as the HTTP port */}}
   {{- $httpPort := index $ports 0 }}
-  {{- $portVal := $httpPort.port | default 8000 }}
+  {{- $portVal = $httpPort.port | default 8000 }}
+{{- end }}
 
-  {{- /* Append MLSERVER_HTTP_PORT */}}
-  {{- $_ := set $app "env" (append $app.env (dict
+{{- /* Check if MLSERVER_HTTP_PORT already defined */}}
+{{- $hasPortEnv := false -}}
+{{- range $e := $env }}
+  {{- if eq ($e.name | default "") "MLSERVER_HTTP_PORT" }}
+    {{- $hasPortEnv = true }}
+  {{- end }}
+{{- end }}
+
+{{- /* Append MLSERVER_HTTP_PORT only if not already present */}}
+{{- if not $hasPortEnv }}
+  {{- $_ := set $app "env" (append $env (dict
         "name"  "MLSERVER_HTTP_PORT"
         "value" (printf "%v" $portVal)
       )) }}
 {{- end }}
 
+{{- /* Default liveness/readiness probes using the effective HTTP port */}}
 {{- if not $app.livenessProbe }}
   {{- $_ := set $app "livenessProbe" (dict
-        "httpGet"             (dict "path" "/v2/health/live"  "port" 8000)
+        "httpGet"             (dict "path" "/v2/health/live"  "port" $portVal)
         "initialDelaySeconds" 10
         "periodSeconds"       15
         "timeoutSeconds"      2
@@ -67,7 +93,7 @@ Responsibilities:
 
 {{- if not $app.readinessProbe }}
   {{- $_ := set $app "readinessProbe" (dict
-        "httpGet"             (dict "path" "/v2/health/ready" "port" 8000)
+        "httpGet"             (dict "path" "/v2/health/ready" "port" $portVal)
         "initialDelaySeconds" 5
         "periodSeconds"       10
         "timeoutSeconds"      2
@@ -126,6 +152,7 @@ Responsibilities:
       )) }}
 {{- end }}
 
+{{- /* Default command/args for mlserver */}}
 {{- if and (not $app.command) (not $app.args) }}
   {{- $_ := set $app "command" (list "mlserver") }}
   {{- $_ := set $app "args" (list
