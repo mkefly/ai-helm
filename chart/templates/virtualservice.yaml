@@ -4,11 +4,11 @@
 
 {{- /* First pass: detect if at least one route will be rendered */}}
 {{- $hasRoutes := dict "any" false }}
-{{- range $idx, $app := .Values.apps }}
-  {{- $kind := $app.kind | default "" }}
-  {{- if and $app.service $app.service.enabled (not $app.service.skipVirtualService) $app.service.ports }}
-    {{- $_ := set $hasRoutes "any" true }}
-  {{- else if and (eq $kind "mlserver") (not $app.service) }}
+{{- range $idx, $raw := .Values.apps }}
+  {{- $appYaml := include "ai-workloads.applyKindDefaults" (dict "root" $root "obj" $raw) }}
+  {{- $app := fromYaml $appYaml }}
+  {{- $svc := $app.service | default dict }}
+  {{- if and $svc.enabled (not $svc.skipVirtualService) $svc.ports }}
     {{- $_ := set $hasRoutes "any" true }}
   {{- end }}
 {{- end }}
@@ -28,26 +28,21 @@ spec:
   gateways:
     - {{ printf "%s/%s" .Values.istio.gateway.namespace .Values.istio.gateway.name }}
   http:
-{{- range $idx, $app := .Values.apps }}
-  {{- $kind := $app.kind | default "" }}
+{{- range $idx, $raw := .Values.apps }}
+  {{- $appYaml := include "ai-workloads.applyKindDefaults" (dict "root" $root "obj" $raw) }}
+  {{- $app := fromYaml $appYaml }}
+  {{- $svc := $app.service | default dict }}
 
-  {{- if and $app.service $app.service.enabled (not $app.service.skipVirtualService) $app.service.ports }}
+  {{- if and $svc.enabled (not $svc.skipVirtualService) $svc.ports }}
 
-    {{- $httpPort := index $app.service.ports 0 }}
-    {{- range $i, $p := $app.service.ports }}
-      {{- if eq $p.name "http" }}
-        {{- $httpPort = $p }}
-      {{- end }}
+    {{- $segment := $app.name }}
+    {{- if $svc.pathPrefix }}
+      {{- $segment = trimPrefix "/" $svc.pathPrefix }}
     {{- end }}
+    {{- $prefix := printf "%s/%s" $base $segment | replace "//" "/" }}
+    {{- $httpPort := include "ai-workloads.serviceHttpPort" (dict "service" $svc) | default "" }}
 
-    {{- $segment := "" -}}
-    {{- if $app.service.pathPrefix -}}
-      {{- $segment = trimPrefix "/" $app.service.pathPrefix -}}
-    {{- else -}}
-      {{- $segment = $app.name -}}
-    {{- end }}
-    {{- $prefix := printf "%s/%s" $base $segment | replace "//" "/" -}}
-
+    {{- if $httpPort }}
     - name: {{ $app.name }}
       match:
         - uri:
@@ -58,7 +53,7 @@ spec:
         - destination:
             host: {{ include "ai-workloads.appName" (dict "root" $root "app" $app) }}
             port:
-              number: {{ $httpPort.port }}
+              number: {{ $httpPort }}
     {{- if $root.Values.istio.timeout }}
       timeout: {{ $root.Values.istio.timeout }}
     {{- end }}
@@ -66,29 +61,6 @@ spec:
       retries:
 {{ toYaml $root.Values.istio.retries | indent 8 }}
     {{- end }}
-
-  {{- else if and (eq $kind "mlserver") (not $app.service) }}
-
-    {{- $segment := $app.name -}}
-    {{- $prefix := printf "%s/%s" $base $segment | replace "//" "/" -}}
-
-    - name: {{ $app.name }}
-      match:
-        - uri:
-            regex: {{ printf "^%s(/(.*))?$" $prefix | quote }}
-      rewrite:
-        uri: "/$2"
-      route:
-        - destination:
-            host: {{ include "ai-workloads.appName" (dict "root" $root "app" $app) }}
-            port:
-              number: 8000
-    {{- if $root.Values.istio.timeout }}
-      timeout: {{ $root.Values.istio.timeout }}
-    {{- end }}
-    {{- if $root.Values.istio.retries }}
-      retries:
-{{ toYaml $root.Values.istio.retries | indent 8 }}
     {{- end }}
 
   {{- end }}
