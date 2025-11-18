@@ -1,46 +1,41 @@
-# fastapi-hpa
+# FastAPI HPA scenario
 
-FastAPI deployment using the `ai-workloads` chart, with a simple CPU-based HPA.
+Deploys a FastAPI microservice with the `ai-workloads` chart and proves that
+kind-specific defaults plus an explicit CPU HPA are enough to keep the service
+healthy under load.
 
-This example shows:
+## What this example covers
 
-- A `kind: fastapi` service deployed as a Deployment.
-- A ClusterIP service on port 8000.
-- A HorizontalPodAutoscaler that keeps average CPU around 60% across 2–8 pods.
+- A `kind: fastapi` Deployment exposed on port `8000`.
+- Automatic ConfigMap + volume mount generated from the `settings` block.
+- CPU-based autoscaling from 2 to 8 replicas.
+- A simple example of templated environment variables (if you want to inject
+  release-specific values later).
 
-## Behaviour
+## Try it locally
 
-When you install this chart:
+```bash
+cd examples/fastapi-hpa
+helm dependency build
+helm template fastapi-hpa .
+```
 
-- `ai-workloads` creates a `Deployment` named
-  `<release>-ai-workloads-fastapi-app`.
-- The Deployment:
-  - Runs `uvicorn main:app` on port `8000`.
-  - Exposes `/health` and `/ping` endpoints.
-- A `Service` selects pods by `app.kubernetes.io/name: fastapi-app` and
-  exposes port `8000` to the namespace.
-- An HPA scales the deployment between 2 and 8 replicas based on CPU.
+The dependency build step uses the local `../../chart` directory, so you do not
+need to pull `ai-workloads` from an OCI registry when iterating.
 
-There is no Ingress/VirtualService; you typically combine this with your own
-ingress or call it from inside the cluster.
+## Key values
 
-### Key variables
+`values.yaml` contains a single entry under `ai-workloads.apps`:
 
-Under `ai-workloads.apps[0]` in `values.yaml`:
+- `infraProfile: cpu-small` keeps the pod requests/limits consistent with the
+  shared platform profile.
+- `settings` renders into `/etc/settings/settings.json` which FastAPI can read
+  at start-up.
+- `env` shows how to pass static env vars; they are processed via `tpl`, so you
+  can switch them to templated strings when you need release-specific values.
+- `hpa.metrics` demonstrates a fully specified `autoscaling/v2` metric; the
+  chart intentionally does not guess sensible defaults for you.
 
-- `infraProfile: cpu-small`  
-  Reuses the central CPU resource profile. If your platform team updates the
-  profile, all services using it inherit the change.
-
-- `replicas: 2`  
-  Baseline replica count. The HPA scales on top of this.
-
-- `hpa.metrics`  
-  Explicit CPU metric for `autoscaling/v2`:
-  - `averageUtilization: 60` means target average CPU usage per pod of ~60%.
-
-- `env`  
-  Example of passing standard environment variables (here only `LOG_LEVEL`).
-
-`settings`, `volumeMounts` and `volumes` are left empty to keep the example
-focused on compute and autoscaling.
+There is intentionally no Ingress/VirtualService in this example to keep the
+focus on compute and autoscaling. Combine it with your platform's ingress layer
+when you want to expose it.

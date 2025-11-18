@@ -1,50 +1,34 @@
-# gpu-nightly-batch
+# GPU nightly batch
 
-GPU nightly batch job using **ai-workloads** `batchTasks` and a blob-backed PVC.
+Shows how to describe a CronJob style workload via `ai-workloads.batchTasks`
+and land it on GPU nodes using the shared infra profile catalogue.
 
-This example assumes a `shared-blob-pvc` PVC already exists in the target
-namespace (for example created using your platform's PVC blueprint).
+## What runs
 
-## Behaviour
+- A single CronJob named `<release>-ai-workloads-gpu-nightly`.
+- `infraProfile: gpu-small` requests one NVIDIA GPU plus the matching
+  tolerations/node selectors from the platform profile.
+- The pod mounts an existing PVC called `shared-blob-pvc` at `/mnt/blob` so the
+  batch script can read inputs and write outputs.
+- A cron schedule of `0 1 * * *` executes the job daily at 01:00 cluster time.
 
-When you install this chart:
+## Try it
 
-- The `ai-workloads` subchart creates a **CronJob** called
-  `<release>-ai-workloads-gpu-nightly`.
-- The CronJob runs **once per day at 01:00** (`schedule: "0 1 * * *"`).
-- The pod:
-  - Uses the **`gpu-small` infraProfile**, which requests a single NVIDIA GPU.
-  - Mounts the PVC `shared-blob-pvc` at `/mnt/blob`.
-  - Reads `.pt` tensors from `/mnt/blob/incoming`.
-  - Writes normalised tensors to `/mnt/blob/processed`.
+```bash
+cd examples/gpu-nightly-batch
+helm dependency build
+helm template gpu-nightly-batch .
+```
 
-The container image is built from the supplied `Dockerfile` and contains a small
-`run_batch.py` script that uses `torch` on GPU when available.
+You should see the CronJob plus the ConfigMap-derived pod spec in the rendered
+manifests.
 
-### Important variables
+## Values to notice
 
-In `values.yaml` under `ai-workloads.batchTasks[0]`:
-
-- `infraProfile: gpu-small`  
-  Tells the ai-workloads chart to pull the **GPU resource profile** from the
-  central `infraProfiles` map (defined in the platform chart). This profile
-  typically sets `requests/limits` for `nvidia.com/gpu`, CPU, memory,
-  nodeSelector and tolerations to land on GPU nodes.
-
-- `volumeMounts` / `volumes`  
-  Mount the pre-existing `shared-blob-pvc` into the container:
-  - `mountPath: /mnt/blob`
-  - `INPUT_DIR` and `OUTPUT_DIR` environment variables are pointed into
-    subdirectories under this mount.
-
-- `activeDeadlineSeconds: 3600`  
-  Kills any run that takes more than an hour. This protects you from stuck
-  jobs that burn GPU time forever.
-
-- `schedule: "0 1 * * *"`  
-  Standard cron expression in **cluster local time**. This controls how often
-  the CronJob runs; all retry behaviour is handled by Kubernetes `backoffLimit`
-  and `activeDeadlineSeconds`.
-
-You generally **do not need** to touch any ai-workloads internals for this
-example; you only describe the batch in `ai-workloads.batchTasks`.
+- The example keeps `apps: []` to emphasise that you can ship *only* batch
+  tasks when needed.
+- `env` illustrates how to pass runtime paths to your container.
+- `activeDeadlineSeconds` and `backoffLimit` ensure the CronJob fails fast if it
+  gets stuck, which protects GPU capacity.
+- Replace `persistentVolumeClaim.claimName` with your own PVC name before
+  running this in a real namespace.

@@ -1,6 +1,14 @@
 # FastAPI with HPA
 
-FastAPI service with CPU-based autoscaling.
+Deploys a FastAPI service that leans on the `fastapi` kind defaults in
+`ai-workloads` and adds an explicit CPU HPA. Render it the same way the CI
+pipeline does:
+
+```bash
+cd examples/fastapi-hpa
+helm dependency build
+helm template fastapi-hpa .
+```
 
 ## Values
 

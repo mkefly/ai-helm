@@ -1,0 +1,32 @@
+stages:
+  - lint
+
+image: alpine/helm:3.13.3
+
+variables:
+  HELM_EXPERIMENTAL_OCI: "1"
+
+.before_script_template: &before_script
+  - apk add --no-cache git
+
+lint:chart:
+  stage: lint
+  before_script: *before_script
+  script:
+    - helm lint chart
+
+lint:examples:
+  stage: lint
+  before_script: *before_script
+  parallel:
+    matrix:
+      - EXAMPLE: fastapi-hpa
+      - EXAMPLE: mlserver-basic
+      - EXAMPLE: mlserver-multi
+      - EXAMPLE: gpu-nightly-batch
+      - EXAMPLE: mlserver-openai-librechat
+  script:
+    - cd examples/${EXAMPLE}
+    - helm dependency build
+    - helm lint .
+    - helm template ${EXAMPLE} . >/dev/null

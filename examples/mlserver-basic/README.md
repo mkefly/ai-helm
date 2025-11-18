@@ -1,62 +1,30 @@
-# mlserver-basic
+# MLServer basic deployment
 
-Simple **MLServer** deployment using the `ai-workloads` chart.
+Ships a single MLServer model with ephemeral `/models` storage so you can see
+how the `kind: mlserver` defaults behave before wiring in a persistent volume.
 
-This example shows:
+## Highlights
 
-- How `kind: mlserver` automatically:
-  - Adds a `Service` on port 8000 (if you don't define one).
-  - Sets `MLSERVER_HTTP_PORT` based on the service port.
-  - Adds basic liveness/readiness probes.
-  - Defaults the command to `mlserver start --settings /etc/settings/settings.json`.
-- How to mount writable storage for model files using an `emptyDir` volume.
-- How to attach a simple CPU-based HPA.
+- `kind: mlserver` auto-injects the command, probes, service on port `8000` and
+  sets `MLSERVER_HTTP_PORT` for you.
+- `settings` is rendered to a ConfigMap and mounted at `/etc/settings`; the
+  sample JSON loads one SKLearn model.
+- An `emptyDir` volume makes `/models` writable without provisioning a PVC.
+- CPU autoscaling keeps between 1 and 5 replicas with a 60% utilisation target.
 
-We assume you want MLServer to read/write under `/models` but you don't yet
-have a PVC provisioned. This example therefore mounts an `emptyDir` volume so
-the container receives a writable filesystem scoped to the Pod's lifecycle. If
-you already have a PVC, see the **Customising the storage** section below.
+## Try it locally
 
-## Behaviour
+```bash
+cd examples/mlserver-basic
+helm dependency build
+helm template mlserver-basic .
+```
 
-When you install this chart:
+This runs entirely against the local copy of the `ai-workloads` chart.
 
-- `ai-workloads` creates a `Deployment` named
-  `<release>-ai-workloads-mlserver-model` with:
-  - 1 replica by default.
-  - Container image `ghcr.io/acme/mlserver-basic-model:v1.0.0`.
-- Volume mount from an `emptyDir` volume at `/models` (ephemeral per Pod).
-- A `ClusterIP` service exposes MLServer on port `8000`.
-- A HorizontalPodAutoscaler (HPA) scales between 1 and 5 replicas based on
-  average CPU utilisation (60%).
+## Customising storage later
 
-Incoming traffic is **cluster-internal only**; there is no Ingress/VirtualService
-in this example.
-
-### Key variables
-
-Under `ai-workloads.apps[0]` in `values.yaml`:
-
-- `kind: mlserver`  
-  Activates MLServer kind-specific defaults in the ai-workloads chart:
-  - Service default on port 8000 if missing.
-  - Default probes.
-  - Default command/args and settings mount when `settings` is provided.
-
-- `settings`  
-  JSON payload rendered into a ConfigMap called
-  `<release>-ai-workloads-mlserver-model-settings` and mounted at
-  `/etc/settings/settings.json`. MLServer reads this at startup.
-
-- `volumeMounts` / `volumes`
-  Provide a writable `/models` path using `emptyDir`. Update this section if
-  you need a PVC instead (see below).
-
-### Customising the storage
-
-`emptyDir` is convenient for experimentation but is erased when the Pod is
-rescheduled. Swap the `volumes` block to use a `persistentVolumeClaim` to keep
-model artifacts across Pod restarts:
+Swap the `volumes` block for a PVC once you are ready to persist the model:
 
 ```yaml
 volumeMounts:
@@ -65,17 +33,8 @@ volumeMounts:
 volumes:
   - name: model-storage
     persistentVolumeClaim:
-      claimName: models-blob-pvc
+      claimName: my-models-pvc
 ```
 
-The chart does not create the PVC for you; it must exist ahead of time.
-
-- `hpa.metrics`  
-  Explicit autoscaling configuration for the `autoscaling/v2` API:
-  - type: `Resource`
-  - resource name: `cpu`
-  - target type: `Utilization`
-  - `averageUtilization: 60`
-
-The ai-workloads chart **does not** infer HPA settings; when `hpa.enabled=true`
-you must provide at least one metric, or the HPA will be skipped.
+Everything else in `values.yaml` can remain the same; MLServer will immediately
+start reading from the PVC instead of the ephemeral directory.

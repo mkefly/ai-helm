@@ -1,88 +1,48 @@
-# mlserver-openai-librechat
+# LibreChat behind OAuth + MLServer runtime
 
-Composite example showing **three** workloads wired together via the
-`ai-workloads` chart:
+End-to-end showcase that wires together an MLServer runtime implementing the
+OpenAI API, the LibreChat backend and an oauth2-proxy front door that enforces
+Azure AD sign-in. It also demonstrates how the `ai-workloads` chart renders
+RequestAuthentication and AuthorizationPolicy resources when AAD + Istio are
+enabled.
 
-1. `runtime-openai` – an MLServer-based runtime that exposes an OpenAI-compatible API.
-2. `librechat-backend` – LibreChat backend, configured to call `runtime-openai`.
-3. `librechat` – an `oauth2-proxy` front end that:
-   - Enforces Azure AD / Entra ID login.
-   - Proxies authenticated users to LibreChat backend.
+## Components
 
-Istio and AAD are enabled **only** in this example to demonstrate how the
-`istio`, `aad`, `requestAuth` and `aadPolicies` values behave.
+1. **runtime-openai** – `kind: mlserver` app exposing port 8000.
+2. **librechat-backend** – `kind: librechat` service that calls runtime-openai
+   via its ClusterIP and remains internal (`skipVirtualService: true`).
+3. **librechat** – `kind: oauth2-proxy` instance that fronts LibreChat and is
+   exposed through the shared Istio VirtualService.
 
-## Behaviour
+## Platform bits enabled here
 
-When you install this chart:
+- `aad` + `requestAuth` describe the Azure AD tenant and audience used by Istio
+  to validate JWTs.
+- `aadPolicies` defines a namespace-wide policy plus an override that keeps
+  `/docs` on `runtime-openai` publicly reachable.
+- The shared ServiceAccount carries a Workload Identity annotation so oauth2-proxy
+  can request tokens from Azure.
+- The Istio block declares the external host, gateway and `/apps` base path.
 
-- `ai-workloads` creates three Deployments and three Services, one per app.
-- An Istio `VirtualService` (in the ai-workloads chart) routes:
-  - `https://ai.example.com/apps/runtime-openai/...` → `runtime-openai` service.
-  - `https://ai.example.com/apps/librechat/...` → `librechat` (oauth2-proxy).
-- A namespace-wide `AuthorizationPolicy` (`ns-all`) requires valid JWTs for
-  **all** inbound traffic to namespace `ai`.
-- An additional `AuthorizationPolicy` (`runtime-openai`) allows unauthenticated
-  access **only** to `/docs` on `runtime-openai`.
+## Try it
 
-### Key ai-workloads values
+```bash
+cd examples/mlserver-openai-librechat
+helm dependency build
+helm template mlserver-openai-librechat .
+```
 
-All ai-workloads-related values are nested under the `ai-workloads:` key in
-`values.yaml` because this chart depends on ai-workloads as a subchart.
+Rendering will output Deployments, Services, HPAs, AuthorizationPolicies and a
+VirtualService whose routes map `/apps/<app-name>` to each workload.
 
-#### AAD & Istio
+## Customise for your tenant
 
-- `aad.tenantId` and `aad.apiAudience`  
-  Used to build the issuer and JWKS URIs for Istio `RequestAuthentication` and
-  to restrict accepted `aud` claims.
+Before installing this chart for real, change the placeholder IDs in
+`values.yaml`:
 
-- `requestAuth.enabled: true`  
-  Tells ai-workloads to render `RequestAuthentication` resources for:
-  - The release namespace.
-  - Any additional namespaces referenced by `aadPolicies[].namespace`.
-
-- `aadPolicies`  
-  Each entry becomes an `AuthorizationPolicy`:
-  - `name: ns-all`, `namespaceWide: true` → policy applies to **all** workloads
-    in namespace `ai`. Because `allowSameNamespaceInternal: true`, requests
-    originating from the same namespace are allowed even without a JWT.
-  - `name: runtime-openai` with `allowedPaths: ["/docs"]`  
-    Adds an extra rule that allows `/docs` without JWT, while everything else
-    still goes through the namespace-wide policy.
-
-- `istio.*`  
-  Controls creation of a `VirtualService`:
-  - `host: ai.example.com`
-  - `gateway: istio-system/ai-workloads-gateway`
-  - `basePath: /apps` – all app paths are rooted under `/apps/<app-name>`
-    unless you override `service.pathPrefix` on the app.
-
-#### Apps
-
-Under `ai-workloads.apps`:
-
-1. **runtime-openai** (`kind: mlserver`)
-
-   - Standard MLServer kind: defaults command, args, probes and settings mount.
-   - Exposes port `8000` via a ClusterIP service.
-   - Scales between 1 and 10 replicas based on CPU.
-
-2. **librechat-backend** (`kind: librechat`)
-
-   - ClusterIP service on port `3000`.
-   - `skipVirtualService: true` → **not** exposed via the shared Istio
-     `VirtualService`; only reachable internally (e.g. from oauth2-proxy).
-   - `OPENAI_API_BASE` is templated using `tpl` so that the ClusterIP service
-     name for `runtime-openai` is computed correctly for each release:
-     it points to `http://<runtime-openai-service>:8000/v1`.
-
-3. **librechat** (`kind: oauth2-proxy`)
-
-   - `oauth2-proxy` listens on port `4180` and redirects users to AAD for login.
-   - `--upstream` is templated to call the `librechat-backend` service on port
-     `3000`.
-   - This service **is** exposed via the shared Istio `VirtualService` at:
-     `https://ai.example.com/apps/librechat/...`.
-
-Each app can also use `infraProfile`, `resources`, `labels`, `annotations`,
-`envFrom`, `volumeMounts`, etc., exactly like any other ai-workloads app.
+- `aad.tenantId` and `aad.apiAudience` to match your Entra ID tenant + app.
+- `serviceAccount.annotations.azure.workload.identity/client-id` so the pods can
+  request tokens with your workload identity.
+- Secret names referenced by `OPENAI_API_KEY` and the oauth2-proxy env vars.
+- All URLs under the oauth2-proxy args so that redirects and upstreams point to
+  your domains.
