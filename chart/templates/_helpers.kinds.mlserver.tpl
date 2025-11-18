@@ -74,6 +74,31 @@ Responsibilities:
       ) }}
 {{- end }}
 
+{{- /* Ensure MLServer pods always get a writable /models (emptyDir) by default */}}
+{{- if not $app.volumeMounts }}
+  {{- $_ := set $app "volumeMounts" (list) }}
+{{- end }}
+
+{{- if not $app.volumes }}
+  {{- $_ := set $app "volumes" (list) }}
+{{- end }}
+
+{{- $volumeMounts := $app.volumeMounts | default (list) -}}
+{{- if eq (len (where $volumeMounts "name" "model-storage")) 0 }}
+  {{- $_ := set $app "volumeMounts" (append $volumeMounts (dict
+        "name"      "model-storage"
+        "mountPath" "/models"
+      )) }}
+{{- end }}
+
+{{- $volumes := $app.volumes | default (list) -}}
+{{- if eq (len (where $volumes "name" "model-storage")) 0 }}
+  {{- $_ := set $app "volumes" (append $volumes (dict
+        "name"     "model-storage"
+        "emptyDir" (dict)
+      )) }}
+{{- end }}
+
 {{- if and (not $app.command) (not $app.args) }}
   {{- $_ := set $app "command" (list "mlserver") }}
   {{- $_ := set $app "args" (list

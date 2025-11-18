@@ -23,7 +23,10 @@ ai-workloads:
             "level": "INFO"
           }
         }
+
       env: []
+      envFrom: []
+
       hpa:
         enabled: true
         minReplicas: 1

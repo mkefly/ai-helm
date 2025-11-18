@@ -9,13 +9,15 @@ This example shows:
   - Sets `MLSERVER_HTTP_PORT` based on the service port.
   - Adds basic liveness/readiness probes.
   - Defaults the command to `mlserver start --settings /etc/settings/settings.json`.
-- How to mount a PVC with model files.
+- How MLServer apps automatically receive writable `/models` storage using an
+  `emptyDir` volume.
 - How to attach a simple CPU-based HPA.
 
-We assume:
-
-- A `models-blob-pvc` PVC already exists in the target namespace.
-- Your model files live under `/models/my-model` inside that PVC.
+We assume you want MLServer to read/write under `/models` but you don't yet
+have a PVC provisioned. `kind: mlserver` therefore injects an `emptyDir`
+volumeMount for `/models` so the container receives a writable filesystem
+scoped to the Pod's lifecycle. If you already have a PVC, see the
+**Customising the storage** section below.
 
 ## Behaviour
 
@@ -25,7 +27,8 @@ When you install this chart:
   `<release>-ai-workloads-mlserver-model` with:
   - 1 replica by default.
   - Container image `ghcr.io/acme/mlserver-basic-model:v1.0.0`.
-  - Volume mount from `models-blob-pvc` at `/models`.
+- Volume mount from an `emptyDir` volume at `/models` (added automatically by
+  the mlserver kind defaults).
 - A `ClusterIP` service exposes MLServer on port `8000`.
 - A HorizontalPodAutoscaler (HPA) scales between 1 and 5 replicas based on
   average CPU utilisation (60%).
@@ -48,9 +51,26 @@ Under `ai-workloads.apps[0]` in `values.yaml`:
   `<release>-ai-workloads-mlserver-model-settings` and mounted at
   `/etc/settings/settings.json`. MLServer reads this at startup.
 
-- `volumeMounts` / `volumes`  
-  Map the `models-blob-pvc` PVC to `/models`, and the model config refers to
-  `/models/my-model` in the `settings` block.
+- `volumes`
+  `kind: mlserver` injects a `model-storage` volume backed by `emptyDir` when
+  you don't define one. Override this block if you need a PVC instead (see
+  below).
+
+### Customising the storage
+
+`emptyDir` is convenient for experimentation but is erased when the Pod is
+rescheduled. Override the injected `model-storage` volume to use a
+`persistentVolumeClaim` and keep model artifacts across Pod restarts (the
+auto-generated `volumeMounts` entry already points to `/models`):
+
+```yaml
+volumes:
+  - name: model-storage
+    persistentVolumeClaim:
+      claimName: models-blob-pvc
+```
+
+The chart does not create the PVC for you; it must exist ahead of time.
 
 - `hpa.metrics`  
   Explicit autoscaling configuration for the `autoscaling/v2` API:
