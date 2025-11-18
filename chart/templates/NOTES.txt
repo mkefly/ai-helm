@@ -5,6 +5,7 @@
 {{- $tasks := .Values.batchTasks | default (list) -}}
 {{- $istio := .Values.istio | default dict -}}
 {{- $aad := .Values.aad | default dict -}}
+{{- $tenantProvided := ne (default "" $aad.tenantId) "" -}}
 {{- $aadPolicies := .Values.aadPolicies | default (list) -}}
 
 ============================================================
@@ -85,7 +86,7 @@ AAD / Entra ID:
   tenantId:      {{ $aad.tenantId | default "<not-set>" }}
   apiAudience:   {{ $aad.apiAudience | default "<not-set>" }}
   audiences[]:   {{- if $aad.audiences }} {{ join ", " $aad.audiences }} {{- else }} <empty> {{- end }}
-  requestAuth:   {{ ternary "enabled" "disabled" (and $aad.tenantId .Values.requestAuth.enabled) }}
+  requestAuth:   {{ ternary "enabled" "disabled" (and $tenantProvided .Values.requestAuth.enabled) }}
 
 ------------------------------------------------------------
 4. Istio / external URLs
@@ -126,7 +127,7 @@ You can still port-forward services manually:
 5. AAD Authentication & AuthorizationPolicies
 ------------------------------------------------------------
 
-{{- if and $aad.tenantId .Values.requestAuth.enabled }}
+{{- if and $tenantProvided .Values.requestAuth.enabled }}
 Tenant: {{ $aad.tenantId }}
 
 RequestAuthentication objects:

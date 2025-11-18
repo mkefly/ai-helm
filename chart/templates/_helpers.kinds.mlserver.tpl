@@ -86,24 +86,40 @@ Responsibilities:
 {{- $modelsMountPath := "/models" -}}
 {{- $modelVolumeName := "" -}}
 {{- $volumeMounts := $app.volumeMounts | default (list) -}}
-{{- $existingModelMounts := where $volumeMounts "mountPath" $modelsMountPath -}}
+{{- $volumes := $app.volumes | default (list) -}}
+{{- $hasModelMount := false -}}
 
-{{- if gt (len $existingModelMounts) 0 -}}
-  {{- $modelVolumeName = ((index $existingModelMounts 0).name | default "") -}}
-{{- else -}}
-  {{- $modelVolumeName = "model-storage" -}}
+{{- range $mount := $volumeMounts -}}
+  {{- if eq ($mount.mountPath | default "") $modelsMountPath -}}
+    {{- $hasModelMount = true -}}
+    {{- if eq $modelVolumeName "" -}}
+      {{- $modelVolumeName = ($mount.name | default "") -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- if not $hasModelMount -}}
+  {{- if eq $modelVolumeName "" -}}
+    {{- $modelVolumeName = "model-storage" -}}
+  {{- end -}}
   {{- $_ := set $app "volumeMounts" (append $volumeMounts (dict
         "name"      $modelVolumeName
         "mountPath" $modelsMountPath
       )) }}
-{{- end }}
-
-{{- if eq $modelVolumeName "" -}}
-  {{- $modelVolumeName = "model-storage" -}}
+{{- else -}}
+  {{- if eq $modelVolumeName "" -}}
+    {{- $modelVolumeName = "model-storage" -}}
+  {{- end -}}
 {{- end -}}
 
-{{- $volumes := $app.volumes | default (list) -}}
-{{- if eq (len (where $volumes "name" $modelVolumeName)) 0 }}
+{{- $hasModelVolume := false -}}
+{{- range $vol := $volumes -}}
+  {{- if eq ($vol.name | default "") $modelVolumeName -}}
+    {{- $hasModelVolume = true -}}
+  {{- end -}}
+{{- end -}}
+
+{{- if not $hasModelVolume }}
   {{- $_ := set $app "volumes" (append $volumes (dict
         "name"     $modelVolumeName
         "emptyDir" (dict)
