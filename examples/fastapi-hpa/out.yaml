@@ -72,6 +72,8 @@ spec:
         app.kubernetes.io/component: fastapi
         app.kubernetes.io/part-of: ai-workloads
       annotations:
+        ai-workloads/infra-profile: cpu-small
+        checksum/settings: c6b89f4a7e90dc331340011426855fee4fe39e159cd728a3b2fe4115c072adda
         traffic.sidecar.istio.io/excludeInboundPorts: "8000"
     spec:
       

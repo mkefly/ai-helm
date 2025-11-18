@@ -5,7 +5,7 @@
 {{- $svc := $app.service | default dict }}
 
 {{- if and $svc.enabled $svc.ports }}
-  {{- $ctx := dict "root" $root "app" $app "type" (default "ClusterIP" $svc.type) "ports" $svc.ports }}
+  {{- $ctx := dict "root" $root "app" $app "type" (default "ClusterIP" $svc.type) "ports" $svc.ports "annotations" ($svc.annotations | default dict) }}
 {{ include "ai-workloads.serviceTemplate" $ctx }}
 ---
 {{- end }}

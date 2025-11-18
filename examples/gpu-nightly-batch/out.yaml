@@ -35,7 +35,7 @@ spec:
             app.kubernetes.io/component: "batch"
             app.kubernetes.io/part-of: ai-workloads
           annotations:
-            {}
+            ai-workloads/infra-profile: gpu-small
         spec:
           
           

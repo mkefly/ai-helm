@@ -70,6 +70,7 @@ apps: []
 #         appProtocol: http        # optional, useful for some meshes/ingress
 #       - name: metrics
 #         port: 9090
+#     annotations: {}       # optional annotations applied to the Service
 #     # If true, this app will NOT be added to the shared Istio VirtualService.
 #     skipVirtualService: false
 #     # Optional explicit path prefix for VirtualService routing.
@@ -174,6 +175,10 @@ batchTasks: []
 #   activeDeadlineSeconds: 900    # optional max runtime (seconds)
 #   schedule: ""                  # if non-empty (cron string), renders a CronJob
 #   concurrencyPolicy: Forbid     # For CronJobs, default Forbid
+#   timeZone: "UTC"               # CronJobs only (K8s 1.27+)
+#   suspend: false                # CronJobs only; pause schedule when true
+#   startingDeadlineSeconds: 300  # CronJobs only; optional catch-up window
+#   ttlSecondsAfterFinished: 86400  # Jobs + CronJobs; garbage-collect completed jobs
 
 # -------------------------------------------------------------------
 # Istio VirtualService (single external host, many app paths)

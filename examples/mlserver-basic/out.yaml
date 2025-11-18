@@ -85,7 +85,8 @@ spec:
         app.kubernetes.io/part-of: ai-workloads
         azure.workload.identity/use: "true"
       annotations:
-        {}
+        ai-workloads/infra-profile: cpu-small
+        checksum/settings: 94426573412dec6e8a591071b973d7f0b74bbcf0683ed5503aae8e2c60b537dd
     spec:
       
       

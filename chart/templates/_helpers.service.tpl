@@ -2,12 +2,17 @@
 {{- define "ai-workloads.serviceTemplate" -}}
 {{- $root := .root -}}
 {{- $app := .app -}}
+{{- $annotations := .annotations | default dict -}}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "ai-workloads.appName" (dict "root" $root "app" $app) }}
   labels:
 {{ include "ai-workloads.standardLabels" (dict "root" $root "name" $app.name "component" ($app.kind | default "app") "extraLabels" $app.labels) | indent 4 }}
+{{- if gt (len $annotations) 0 }}
+  annotations:
+{{ toYaml $annotations | indent 4 }}
+{{- end }}
 spec:
   type: {{ .type }}
   selector:
