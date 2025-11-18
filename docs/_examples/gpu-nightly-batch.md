@@ -1,6 +1,12 @@
-# GPU Nightly Batch
+# GPU nightly batch
 
-Nightly GPU CronJob reading from and writing to a blob-mounted PVC.
+Nightly GPU CronJob reading from and writing to a blob-mounted PVC. Render with:
+
+```bash
+cd examples/gpu-nightly-batch
+helm dependency build
+helm template gpu-nightly-batch .
+```
 
 ## Values
 

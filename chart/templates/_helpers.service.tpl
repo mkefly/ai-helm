@@ -24,3 +24,26 @@ spec:
 {{- end }}
 {{- end }}
 {{- end -}}
+
+{{/* Resolve the most appropriate HTTP port for a Service */}}
+{{- define "ai-workloads.serviceHttpPort" -}}
+{{- $svc := .service | default dict -}}
+{{- $ports := $svc.ports | default (list) -}}
+{{- $state := dict "port" nil -}}
+
+{{- range $ports }}
+  {{- if and (not $state.port) (eq (.name | default "") "http") }}
+    {{- $_ := set $state "port" .port }}
+  {{- end }}
+{{- end }}
+
+{{- if not $state.port }}
+  {{- if gt (len $ports) 0 }}
+    {{- $_ := set $state "port" ((index $ports 0).port) }}
+  {{- end }}
+{{- end }}
+
+{{- if $state.port }}
+{{ $state.port }}
+{{- end }}
+{{- end -}}

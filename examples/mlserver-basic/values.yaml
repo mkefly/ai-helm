@@ -1,37 +1,34 @@
 ai-workloads:
   apps:
-    - name: mlserver-model
+    - name: mlserver-basic
       kind: mlserver
       infraProfile: cpu-small
-      replicas: 1
+
       image:
         repository: ghcr.io/acme/mlserver-basic-model
         tag: v1.0.0
-        pullPolicy: IfNotPresent
-      settings: |-
+
+      settings: |
         {
           "models": [
             {
-              "name": "my-model",
+              "name": "credit-default",
               "implementation": "mlserver_sklearn.SKLearnModel",
               "parameters": {
-                "uri": "/models/my-model"
+                "uri": "/models/credit-default"
               }
             }
           ],
-          "logging": {
-            "level": "INFO"
-          }
+          "logLevel": "INFO"
         }
 
-      env: []
-      envFrom: []
       volumeMounts:
         - name: model-storage
           mountPath: /models
       volumes:
         - name: model-storage
           emptyDir: {}
+
       hpa:
         enabled: true
         minReplicas: 1

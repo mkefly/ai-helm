@@ -5,4 +5,4 @@ description: GPU nightly batch job using ai-workloads batchTasks and a blob moun
 dependencies:
   - name: ai-workloads
     version: 0.9.1
-    repository: oci://ghcr.io/acme/charts
+    repository: file://../../chart

@@ -1,43 +1,27 @@
 ai-workloads:
   apps:
-    - name: mlserver-model
+    - name: mlserver-a
       kind: mlserver
       infraProfile: cpu-small
       replicas: 1
 
       image:
-        repository: ghcr.io/acme/mlserver-basic-model
-        tag: v1.0.0
-        pullPolicy: IfNotPresent
+        repository: ghcr.io/acme/mlserver-a
+        tag: v1.1.0
 
-      settings: |-
+      settings: |
         {
           "models": [
             {
-              "name": "my-model",
+              "name": "fraud-detector",
               "implementation": "mlserver_sklearn.SKLearnModel",
               "parameters": {
-                "uri": "/models/my-model"
+                "uri": "/models/fraud-detector"
               }
             }
           ],
-          "logging": {
-            "level": "INFO"
-          }
+          "logLevel": "INFO"
         }
-
-      # ai-workloads will default settingsMountPath to /etc/settings when settings is set.
-      settingsConfigMapName: ""
-
-      # No need to define command/args or MLSERVER_HTTP_PORT: kind=mlserver does this for you.
-      command: []
-      args: []
-
-      env: []
-      envFrom: []
-
-      labels: {}
-      annotations: {}
 
       hpa:
         enabled: true
@@ -55,25 +39,36 @@ ai-workloads:
       kind: mlserver
       infraProfile: cpu-medium
       replicas: 1
+
       image:
         repository: ghcr.io/acme/mlserver-b
-        tag: v1.0.0
-        pullPolicy: IfNotPresent
-      settings: |-
+        tag: v2.0.0
+
+      service:
+        enabled: true
+        type: ClusterIP
+        ports:
+          - name: http
+            port: 9000
+            protocol: TCP
+
+      settings: |
         {
           "models": [
             {
-              "name": "model-b",
+              "name": "recommendation",
               "implementation": "mlserver_sklearn.SKLearnModel",
               "parameters": {
-                "uri": "/models/model-b"
+                "uri": "/models/recommendation"
               }
             }
           ],
-          "logging": {
-            "level": "DEBUG"
-          }
+          "logLevel": "DEBUG"
         }
+
+      env:
+        - name: MLSERVER_HTTP_PORT
+          value: "9000"
 
       hpa:
         enabled: true

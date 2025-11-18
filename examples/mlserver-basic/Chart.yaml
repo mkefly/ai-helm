@@ -5,4 +5,4 @@ description: Example MLServer model deployment using ai-workloads.
 dependencies:
   - name: ai-workloads
     version: 0.9.1
-    repository: oci://ghcr.io/acme/charts
+    repository: file://../../chart
