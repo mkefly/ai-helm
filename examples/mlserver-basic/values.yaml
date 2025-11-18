@@ -26,7 +26,12 @@ ai-workloads:
 
       env: []
       envFrom: []
-
+      volumeMounts:
+        - name: model-storage
+          mountPath: /models
+      volumes:
+        - name: model-storage
+          emptyDir: {}
       hpa:
         enabled: true
         minReplicas: 1
