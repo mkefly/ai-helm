@@ -29,8 +29,9 @@ When you install this chart:
   - `<release>-ai-workloads-mlserver-b`
 - Each Deployment has:
   - Its own `Service` (port 8000) and settings ConfigMap.
-  - A writable `/models` directory backed by an auto-injected `emptyDir`
-    volume (unless you override it with a PVC).
+- A writable `/models` directory backed by an auto-injected `emptyDir`
+    volume (skipped when you already mount `/models`, so PVC-backed setups don't
+    get duplicate mounts).
   - Its own HPA with independent metrics.
 - If you enable Istio in a higher-level chart, the VirtualService will expose
   both apps under different paths (by default `/mlserver-a` and `/mlserver-b`

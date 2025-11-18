@@ -83,18 +83,29 @@ Responsibilities:
   {{- $_ := set $app "volumes" (list) }}
 {{- end }}
 
+{{- $modelsMountPath := "/models" -}}
+{{- $modelVolumeName := "" -}}
 {{- $volumeMounts := $app.volumeMounts | default (list) -}}
-{{- if eq (len (where $volumeMounts "name" "model-storage")) 0 }}
+{{- $existingModelMounts := where $volumeMounts "mountPath" $modelsMountPath -}}
+
+{{- if gt (len $existingModelMounts) 0 -}}
+  {{- $modelVolumeName = ((index $existingModelMounts 0).name | default "") -}}
+{{- else -}}
+  {{- $modelVolumeName = "model-storage" -}}
   {{- $_ := set $app "volumeMounts" (append $volumeMounts (dict
-        "name"      "model-storage"
-        "mountPath" "/models"
+        "name"      $modelVolumeName
+        "mountPath" $modelsMountPath
       )) }}
 {{- end }}
 
+{{- if eq $modelVolumeName "" -}}
+  {{- $modelVolumeName = "model-storage" -}}
+{{- end -}}
+
 {{- $volumes := $app.volumes | default (list) -}}
-{{- if eq (len (where $volumes "name" "model-storage")) 0 }}
+{{- if eq (len (where $volumes "name" $modelVolumeName)) 0 }}
   {{- $_ := set $app "volumes" (append $volumes (dict
-        "name"     "model-storage"
+        "name"     $modelVolumeName
         "emptyDir" (dict)
       )) }}
 {{- end }}
