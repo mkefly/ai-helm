@@ -1,0 +1,475 @@
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aiw-ai-workloads-sa
+  annotations:
+    azure.workload.identity/client-id: 3b3c6b2c-1a2d-4e6a-9f22-03f2e7c1d8ab
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiw-ai-workloads-runtime-openai
+  labels:
+    app.kubernetes.io/name: runtime-openai
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    
+    azure.workload.identity/use: "true"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: runtime-openai
+    app.kubernetes.io/instance: aiw
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiw-ai-workloads-librechat-backend
+  labels:
+    app.kubernetes.io/name: librechat-backend
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: librechat
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    
+    azure.workload.identity/use: "true"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: librechat-backend
+    app.kubernetes.io/instance: aiw
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiw-ai-workloads-librechat
+  labels:
+    app.kubernetes.io/name: librechat
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: oauth2-proxy
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    
+    azure.workload.identity/use: "true"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: librechat
+    app.kubernetes.io/instance: aiw
+  ports:
+    - name: http
+      port: 4180
+      targetPort: 4180
+      protocol: TCP
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiw-ai-workloads-runtime-openai
+  labels:
+    app.kubernetes.io/name: runtime-openai
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    
+    azure.workload.identity/use: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: runtime-openai
+      app.kubernetes.io/instance: aiw
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: runtime-openai
+        app.kubernetes.io/instance: aiw
+        app.kubernetes.io/component: mlserver
+        app.kubernetes.io/part-of: ai-workloads
+        azure.workload.identity/use: "true"
+      annotations:
+        {}
+    spec:
+      
+      
+      serviceAccountName: aiw-ai-workloads-sa
+      restartPolicy: Always
+      
+      containers:
+        - name: runtime-openai
+          image: "ghcr.io/acme/runtime-openai:v1.0.0"
+          imagePullPolicy: IfNotPresent
+          command:
+            - mlserver
+          args:
+            - start
+            - --settings
+            - /etc/settings/settings.json
+          env:
+            - name: LOG_LEVEL
+              value: "info"
+            - name: MLSERVER_HTTP_PORT
+              value: "8000"
+          livenessProbe:
+            httpGet:
+              path: /v2/health/live
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /models
+              name: model-storage
+      volumes:
+        - emptyDir: {}
+          name: model-storage
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiw-ai-workloads-librechat-backend
+  labels:
+    app.kubernetes.io/name: librechat-backend
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: librechat
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    
+    azure.workload.identity/use: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: librechat-backend
+      app.kubernetes.io/instance: aiw
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: librechat-backend
+        app.kubernetes.io/instance: aiw
+        app.kubernetes.io/component: librechat
+        app.kubernetes.io/part-of: ai-workloads
+        azure.workload.identity/use: "true"
+      annotations:
+        {}
+    spec:
+      
+      
+      serviceAccountName: aiw-ai-workloads-sa
+      restartPolicy: Always
+      
+      containers:
+        - name: librechat-backend
+          image: "ghcr.io/librechat/librechat:latest"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: api-key
+                  name: librechat-openai-key
+            - name: OPENAI_API_BASE
+              value: "http://aiw-ai-workloads-runtime-openai:8000/v1"
+            - name: OPENAI_API_TYPE
+              value: "openai"
+            - name: OPENAI_API_VERSION
+              value: "2023-05-15"
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiw-ai-workloads-librechat
+  labels:
+    app.kubernetes.io/name: librechat
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: oauth2-proxy
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    
+    azure.workload.identity/use: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: librechat
+      app.kubernetes.io/instance: aiw
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: librechat
+        app.kubernetes.io/instance: aiw
+        app.kubernetes.io/component: oauth2-proxy
+        app.kubernetes.io/part-of: ai-workloads
+        azure.workload.identity/use: "true"
+      annotations:
+        {}
+    spec:
+      
+      
+      serviceAccountName: aiw-ai-workloads-sa
+      restartPolicy: Always
+      
+      containers:
+        - name: librechat
+          image: "quay.io/oauth2-proxy/oauth2-proxy:v7.6.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - --http-address=0.0.0.0:4180
+            - --provider=oidc
+            - --oidc-issuer-url=https://login.microsoftonline.com/8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01/v2.0
+            - --scope=openid,profile,email
+            - --redirect-url=https://ai.example.com/apps/librechat/oauth2/callback
+            - --email-domain=example.com
+            - --upstream=http://aiw-ai-workloads-librechat-backend:3000
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-refresh=1h
+            - --cookie-expire=12h
+            - --cookie-http-only=true
+            - --pass-access-token=true
+            - --set-authorization-header=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              value: "3b3c6b2c-1a2d-4e6a-9f22-03f2e7c1d8ab"
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: client-secret
+                  name: oauth2-proxy-client
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: cookie-secret
+                  name: oauth2-proxy-cookie
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: aiw-ai-workloads-runtime-openai-hpa
+  labels:
+    app.kubernetes.io/name: runtime-openai
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    ai-workloads/hpa-profile: "standard"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: aiw-ai-workloads-runtime-openai
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 60
+          type: Utilization
+      type: Resource
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: aiw-ai-workloads-librechat-backend-hpa
+  labels:
+    app.kubernetes.io/name: librechat-backend
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: librechat
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    ai-workloads/hpa-profile: "standard"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: aiw-ai-workloads-librechat-backend
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 60
+          type: Utilization
+      type: Resource
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/aad-authzpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: aiw-ai-workloads-ns-all-aad
+  namespace: ai
+spec:
+
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["ai"]
+
+    - from:
+        - source:
+            requestPrincipals: ["*"]
+      when:
+        - key: request.auth.claims[aud]
+          values:
+            - "api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61"
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/aad-authzpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: aiw-ai-workloads-runtime-openai-aad
+  namespace: ai
+spec:
+  selector:
+      matchLabels:
+        app.kubernetes.io/name: runtime-openai
+
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["ai"]
+      to:
+        - operation:
+            paths:
+              - "/docs"
+
+    - from:
+        - source:
+            requestPrincipals: ["*"]
+      to:
+        - operation:
+            paths:
+              - "/docs"
+      when:
+        - key: request.auth.claims[aud]
+          values:
+            - "api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61"
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/aad-requestauth.yaml
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: aiw-ai-workloads-aad-requestauth-ai
+  namespace: ai
+spec:
+  jwtRules:
+    - issuer: "https://login.microsoftonline.com/8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01/v2.0"
+      jwksUri: "https://login.microsoftonline.com/8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01/discovery/v2.0/keys"
+      audiences:
+        - "api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61"
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/aad-requestauth.yaml
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: aiw-ai-workloads-aad-requestauth-default
+  namespace: default
+spec:
+  jwtRules:
+    - issuer: "https://login.microsoftonline.com/8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01/v2.0"
+      jwksUri: "https://login.microsoftonline.com/8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01/discovery/v2.0/keys"
+      audiences:
+        - "api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61"
+---
+# Source: mlserver-openai-librechat/charts/ai-workloads/templates/virtualservice.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: aiw-ai-workloads-vs
+  labels:
+    app.kubernetes.io/name: ai-workloads
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+spec:
+  hosts:
+    - "ai.example.com"
+  gateways:
+    - "istio-system/ai-workloads-gateway"
+  http:
+    - name: runtime-openai
+      match:
+        - uri:
+            regex: "^/apps/runtime-openai(/(.*))?$"
+      rewrite:
+        uri: "/$2"
+      route:
+        - destination:
+            host: aiw-ai-workloads-runtime-openai
+            port:
+              number: 8000
+      timeout: 60s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,connect-failure,refused-stream
+    - name: librechat
+      match:
+        - uri:
+            regex: "^/apps/librechat(/(.*))?$"
+      rewrite:
+        uri: "/$2"
+      route:
+        - destination:
+            host: aiw-ai-workloads-librechat
+            port:
+              number: 4180
+      timeout: 60s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,connect-failure,refused-stream

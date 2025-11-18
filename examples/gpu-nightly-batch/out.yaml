@@ -1,0 +1,76 @@
+---
+# Source: gpu-nightly-batch/charts/ai-workloads/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aiw-ai-workloads-sa
+---
+# Source: gpu-nightly-batch/charts/ai-workloads/templates/batch-task.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: aiw-ai-workloads-gpu-nightly
+  labels:
+    app.kubernetes.io/name: gpu-nightly
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: batch
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+spec:
+  schedule: "0 1 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      parallelism: 1
+      completions: 1
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: gpu-nightly
+            app.kubernetes.io/instance: aiw
+            app.kubernetes.io/component: "batch"
+            app.kubernetes.io/part-of: ai-workloads
+          annotations:
+            {}
+        spec:
+          
+          
+          serviceAccountName: aiw-ai-workloads-sa
+          restartPolicy: Never
+          nodeSelector:
+            workload: gpu
+          tolerations:
+            - effect: NoSchedule
+              key: workload
+              operator: Equal
+              value: gpu
+          
+          containers:
+            - name: gpu-nightly
+              image: "ghcr.io/acme/gpu-batch:v1.0.0"
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: INPUT_DIR
+                  value: "/mnt/blob/incoming"
+                - name: OUTPUT_DIR
+                  value: "/mnt/blob/processed"
+              resources:
+                limits:
+                  cpu: "4"
+                  memory: 16Gi
+                  nvidia.com/gpu: 1
+                requests:
+                  cpu: "1"
+                  memory: 8Gi
+                  nvidia.com/gpu: 1
+              volumeMounts:
+                - mountPath: /mnt/blob
+                  name: blob-store
+          volumes:
+            - name: blob-store
+              persistentVolumeClaim:
+                claimName: shared-blob-pvc

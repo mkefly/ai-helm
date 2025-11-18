@@ -1,0 +1,486 @@
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aiw-ai-workloads-sa
+  annotations:
+    azure.workload.identity/client-id: 3b3c6b2c-1a2d-4e6a-9f22-03f2e7c1d8ab
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/configmap-settings.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aiw-ai-workloads-mlserver-a-settings
+  labels:
+    app.kubernetes.io/name: mlserver-a
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+data:
+  settings.json: |
+    {
+      "models": [
+        {
+          "name": "fraud-detector",
+          "implementation": "mlserver_sklearn.SKLearnModel",
+          "parameters": {
+            "uri": "/models/fraud-detector"
+          }
+        }
+      ],
+      "logLevel": "INFO"
+    }
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/configmap-settings.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aiw-ai-workloads-mlserver-b-settings
+  labels:
+    app.kubernetes.io/name: mlserver-b
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+data:
+  settings.json: |
+    {
+      "models": [
+        {
+          "name": "recommendation",
+          "implementation": "mlserver_sklearn.SKLearnModel",
+          "parameters": {
+            "uri": "/models/recommendation"
+          }
+        }
+      ],
+      "logLevel": "DEBUG"
+    }
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiw-ai-workloads-mlserver-a
+  labels:
+    app.kubernetes.io/name: mlserver-a
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    
+    azure.workload.identity/use: "true"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: mlserver-a
+    app.kubernetes.io/instance: aiw
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiw-ai-workloads-mlserver-b
+  labels:
+    app.kubernetes.io/name: mlserver-b
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    
+    azure.workload.identity/use: "true"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: mlserver-b
+    app.kubernetes.io/instance: aiw
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiw-ai-workloads-mlserver-a
+  labels:
+    app.kubernetes.io/name: mlserver-a
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    
+    azure.workload.identity/use: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mlserver-a
+      app.kubernetes.io/instance: aiw
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mlserver-a
+        app.kubernetes.io/instance: aiw
+        app.kubernetes.io/component: mlserver
+        app.kubernetes.io/part-of: ai-workloads
+        azure.workload.identity/use: "true"
+      annotations:
+        {}
+    spec:
+      
+      
+      serviceAccountName: aiw-ai-workloads-sa
+      restartPolicy: Always
+      
+      containers:
+        - name: mlserver-a
+          image: "ghcr.io/acme/mlserver-a:v1.1.0"
+          imagePullPolicy: IfNotPresent
+          command:
+            - mlserver
+          args:
+            - start
+            - --settings
+            - /etc/settings/settings.json
+          env:
+            - name: MLSERVER_HTTP_PORT
+              value: "8000"
+          livenessProbe:
+            httpGet:
+              path: /v2/health/live
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /models
+              name: model-storage
+            - name: app-settings
+              mountPath: "/etc/settings"
+      volumes:
+        - emptyDir: {}
+          name: model-storage
+        - name: app-settings
+          configMap:
+            name: "aiw-ai-workloads-mlserver-a-settings"
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiw-ai-workloads-mlserver-b
+  labels:
+    app.kubernetes.io/name: mlserver-b
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    
+    azure.workload.identity/use: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mlserver-b
+      app.kubernetes.io/instance: aiw
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mlserver-b
+        app.kubernetes.io/instance: aiw
+        app.kubernetes.io/component: mlserver
+        app.kubernetes.io/part-of: ai-workloads
+        azure.workload.identity/use: "true"
+      annotations:
+        {}
+    spec:
+      
+      
+      serviceAccountName: aiw-ai-workloads-sa
+      restartPolicy: Always
+      
+      containers:
+        - name: mlserver-b
+          image: "ghcr.io/acme/mlserver-b:v2.0.0"
+          imagePullPolicy: IfNotPresent
+          command:
+            - mlserver
+          args:
+            - start
+            - --settings
+            - /etc/settings/settings.json
+          env:
+            - name: MLSERVER_HTTP_PORT
+              value: "8000"
+          livenessProbe:
+            httpGet:
+              path: /v2/health/live
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /models
+              name: model-storage
+            - name: app-settings
+              mountPath: "/etc/settings"
+      volumes:
+        - emptyDir: {}
+          name: model-storage
+        - name: app-settings
+          configMap:
+            name: "aiw-ai-workloads-mlserver-b-settings"
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: aiw-ai-workloads-mlserver-a-hpa
+  labels:
+    app.kubernetes.io/name: mlserver-a
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    ai-workloads/hpa-profile: "standard"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: aiw-ai-workloads-mlserver-a
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 60
+          type: Utilization
+      type: Resource
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: aiw-ai-workloads-mlserver-b-hpa
+  labels:
+    app.kubernetes.io/name: mlserver-b
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: mlserver
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    ai-workloads/hpa-profile: "large"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: aiw-ai-workloads-mlserver-b
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 60
+          type: Utilization
+      type: Resource
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/aad-authzpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: aiw-ai-workloads-ns-all-aad
+  namespace: ai
+spec:
+
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["ai"]
+
+    - from:
+        - source:
+            requestPrincipals: ["*"]
+      when:
+        - key: request.auth.claims[aud]
+          values:
+            - "api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61"
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/aad-authzpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: aiw-ai-workloads-mlserver-a-aad
+  namespace: ai
+spec:
+  selector:
+      matchLabels:
+        app.kubernetes.io/name: mlserver-a
+
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["ai"]
+      to:
+        - operation:
+            paths:
+              - "/docs"
+
+    - from:
+        - source:
+            requestPrincipals: ["*"]
+      to:
+        - operation:
+            paths:
+              - "/docs"
+      when:
+        - key: request.auth.claims[aud]
+          values:
+            - "api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61"
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/aad-authzpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: aiw-ai-workloads-mlserver-b-aad
+  namespace: ai
+spec:
+  selector:
+      matchLabels:
+        app.kubernetes.io/name: mlserver-b
+
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["ai"]
+      to:
+        - operation:
+            paths:
+              - "/docs"
+
+    - from:
+        - source:
+            requestPrincipals: ["*"]
+      to:
+        - operation:
+            paths:
+              - "/docs"
+      when:
+        - key: request.auth.claims[aud]
+          values:
+            - "api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61"
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/aad-requestauth.yaml
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: aiw-ai-workloads-aad-requestauth-ai
+  namespace: ai
+spec:
+  jwtRules:
+    - issuer: "https://login.microsoftonline.com/8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01/v2.0"
+      jwksUri: "https://login.microsoftonline.com/8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01/discovery/v2.0/keys"
+      audiences:
+        - "api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61"
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/aad-requestauth.yaml
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: aiw-ai-workloads-aad-requestauth-default
+  namespace: default
+spec:
+  jwtRules:
+    - issuer: "https://login.microsoftonline.com/8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01/v2.0"
+      jwksUri: "https://login.microsoftonline.com/8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01/discovery/v2.0/keys"
+      audiences:
+        - "api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61"
+---
+# Source: mlserver-multi/charts/ai-workloads/templates/virtualservice.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: aiw-ai-workloads-vs
+  labels:
+    app.kubernetes.io/name: ai-workloads
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+spec:
+  hosts:
+    - "ai.example.com"
+  gateways:
+    - "istio-system/ai-workloads-gateway"
+  http:
+    - name: mlserver-a
+      match:
+        - uri:
+            regex: "^/apps/mlserver-a(/(.*))?$"
+      rewrite:
+        uri: "/$2"
+      route:
+        - destination:
+            host: aiw-ai-workloads-mlserver-a
+            port:
+              number: 8000
+      timeout: 60s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,connect-failure,refused-stream
+    - name: mlserver-b
+      match:
+        - uri:
+            regex: "^/apps/mlserver-b(/(.*))?$"
+      rewrite:
+        uri: "/$2"
+      route:
+        - destination:
+            host: aiw-ai-workloads-mlserver-b
+            port:
+              number: 8000
+      timeout: 60s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,connect-failure,refused-stream

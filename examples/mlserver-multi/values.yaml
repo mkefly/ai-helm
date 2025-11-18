@@ -11,7 +11,12 @@ ai-workloads:
       namespace: ai
       namespaceWide: true
       allowSameNamespaceInternal: true
-    - name: runtime-openai
+    - name: mlserver-a
+      namespace: ai
+      allowedPaths:
+        - /docs
+      allowSameNamespaceInternal: true
+    - name: mlserver-b
       namespace: ai
       allowedPaths:
         - /docs
@@ -59,6 +64,10 @@ ai-workloads:
           "logLevel": "INFO"
         }
 
+      hpa:
+        enabled: true
+        profile: standard
+
     - name: mlserver-b
       kind: mlserver
       infraProfile: cpu-medium
@@ -82,6 +91,6 @@ ai-workloads:
           "logLevel": "DEBUG"
         }
 
-  batchTasks: []
-
-
+      hpa:
+        enabled: true
+        profile: large

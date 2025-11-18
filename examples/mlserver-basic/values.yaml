@@ -27,3 +27,8 @@ ai-workloads:
           ],
           "logLevel": "INFO"
         }
+
+      hpa:
+        enabled: true
+        profile: standard   # optional; uses hpa.defaultProfile if omitted
+        # metrics: [...]    # optional; overrides global default if set

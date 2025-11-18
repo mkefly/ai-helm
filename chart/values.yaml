@@ -293,3 +293,25 @@ infraProfiles:
         value: "gpu"
         effect: "NoSchedule"
     affinity: {}
+
+
+hpa:
+  # Global default profile if app.hpa.profile is not set
+  defaultProfile: standard
+
+  profiles:
+    standard:
+      minReplicas: 1
+      maxReplicas: 5
+    large:
+      minReplicas: 2
+      maxReplicas: 20
+
+  # Global default metrics – used if app.hpa.metrics is not set
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60

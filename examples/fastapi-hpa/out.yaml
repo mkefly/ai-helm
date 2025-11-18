@@ -1,0 +1,131 @@
+---
+# Source: fastapi-hpa/charts/ai-workloads/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aiw-ai-workloads-sa
+---
+# Source: fastapi-hpa/charts/ai-workloads/templates/configmap-settings.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aiw-ai-workloads-fastapi-app-settings
+  labels:
+    app.kubernetes.io/name: fastapi-app
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: fastapi
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+data:
+  settings.json: |
+    {
+      "runtime": {
+        "logLevel": "info",
+        "featureFlags": ["beta-endpoints"]
+      }
+    }
+---
+# Source: fastapi-hpa/charts/ai-workloads/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiw-ai-workloads-fastapi-app
+  labels:
+    app.kubernetes.io/name: fastapi-app
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: fastapi
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: fastapi-app
+    app.kubernetes.io/instance: aiw
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+# Source: fastapi-hpa/charts/ai-workloads/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiw-ai-workloads-fastapi-app
+  labels:
+    app.kubernetes.io/name: fastapi-app
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: fastapi
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fastapi-app
+      app.kubernetes.io/instance: aiw
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fastapi-app
+        app.kubernetes.io/instance: aiw
+        app.kubernetes.io/component: fastapi
+        app.kubernetes.io/part-of: ai-workloads
+      annotations:
+        traffic.sidecar.istio.io/excludeInboundPorts: "8000"
+    spec:
+      
+      
+      serviceAccountName: aiw-ai-workloads-sa
+      restartPolicy: Always
+      
+      containers:
+        - name: fastapi-app
+          image: "ghcr.io/acme/fastapi-app:v1.0.0"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LOG_LEVEL
+              value: "info"
+            - name: FEATURE_FLAGS
+              value: "beta-endpoints"
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - name: app-settings
+              mountPath: "/etc/settings"
+      volumes:
+        - name: app-settings
+          configMap:
+            name: "aiw-ai-workloads-fastapi-app-settings"
+---
+# Source: fastapi-hpa/charts/ai-workloads/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: aiw-ai-workloads-fastapi-app-hpa
+  labels:
+    app.kubernetes.io/name: fastapi-app
+    app.kubernetes.io/instance: aiw
+    app.kubernetes.io/component: fastapi
+    app.kubernetes.io/managed-by: "ai-workloads-helm"
+    app.kubernetes.io/part-of: ai-workloads
+    ai-workloads/hpa-profile: "standard"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: aiw-ai-workloads-fastapi-app
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 60
+          type: Utilization
+      type: Resource
