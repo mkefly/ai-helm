@@ -1,39 +1,8 @@
 ai-workloads:
-  aad:
-    tenantId: 8f1c4e9a-7d49-4a7a-9a5b-2d4f2e6b9c01
-    apiAudience: api://9f59e2de-5b75-4837-a4aa-8f30bc2b3d61
-
-  requestAuth:
-    enabled: true
-
-  aadPolicies:
-    - name: ns-all
-      namespace: ai
-      namespaceWide: true
-      allowSameNamespaceInternal: true
-    - name: runtime-openai
-      namespace: ai
-      allowedPaths:
-        - /docs
-      allowSameNamespaceInternal: true
-
   serviceAccount:
     create: true
     annotations:
       azure.workload.identity/client-id: 3b3c6b2c-1a2d-4e6a-9f22-03f2e7c1d8ab
-
-  istio:
-    enabled: true
-    host: ai.example.com
-    gateway:
-      name: ai-workloads-gateway
-      namespace: istio-system
-    basePath: /apps
-    timeout: 60s
-    retries:
-      attempts: 3
-      perTryTimeout: 10s
-      retryOn: 5xx,connect-failure,refused-stream
 
   apps:
     - name: runtime-openai
